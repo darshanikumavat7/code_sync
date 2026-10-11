@@ -8,10 +8,12 @@ import {
   ArrowRight, 
   Layers, 
   Printer, 
-  FileCheck 
+  FileCheck,
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 
-import { Language, Currency, Borrower, TransactionReceipt } from './types';
+import { Language, Currency, Borrower, TransactionReceipt, TargetTimeline } from './types';
 import { MOCK_BORROWERS } from './data/mockBorrowers';
 import { computeSmartBasket, formatCurrency, generateOfficialReceipt } from './utils/calculator';
 import { TRANSLATIONS } from './data/translations';
@@ -27,11 +29,14 @@ import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { Footer } from './components/Footer';
 
 export function App() {
-  // Primary States
+  // Primary States with inclusive micro-budget defaults
   const [language, setLanguage] = useState<Language>('en');
-  const [currency, setCurrency] = useState<Currency>('USD');
-  const [capital, setCapital] = useState<number>(10000);
-  const [riskLevel, setRiskLevel] = useState<number>(3); // Default to Safe
+  const [currency, setCurrency] = useState<Currency>('INR');
+  const [budgetInr, setBudgetInr] = useState<number>(5000); // Default ₹5,000 (range ₹500 to ₹50,000)
+  const [targetTimeline, setTargetTimeline] = useState<TargetTimeline>(0); // 0 = All Timelines
+  const [isPortfolioLocked, setIsPortfolioLocked] = useState<boolean>(true); // Lock Balance (Zero Idle Cash)
+  const [basketCount, setBasketCount] = useState<number>(5); // 3 to 5 matching borrowers
+  const [riskLevel, setRiskLevel] = useState<number>(3); // Level 3 = Maximum Capital Safety
 
   // Modals
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
@@ -42,23 +47,31 @@ export function App() {
   const t = TRANSLATIONS[language];
 
   // REAL-TIME RECALCULATION & RE-RANKING VIA useMemo
+  // Recalculates dynamically based on Budget, Timeline, Risk, and Basket Size
   const allMatches = useMemo(() => {
-    return computeSmartBasket(MOCK_BORROWERS, riskLevel, capital);
-  }, [riskLevel, capital]);
+    return computeSmartBasket(
+      MOCK_BORROWERS,
+      riskLevel,
+      budgetInr,
+      targetTimeline,
+      isPortfolioLocked,
+      basketCount
+    );
+  }, [riskLevel, budgetInr, targetTimeline, isPortfolioLocked, basketCount]);
 
-  // Top 5 Safe Matches for Smart Basket Split
-  const top5Matches = useMemo(() => {
-    return allMatches.slice(0, 5);
-  }, [allMatches]);
+  // Top Safe Matches for Smart Basket Split (3 to 5 borrowers)
+  const topMatches = useMemo(() => {
+    return allMatches.slice(0, basketCount);
+  }, [allMatches, basketCount]);
 
   // Weighted Portfolio Metrics
   const { expectedAnnualProfit, averageCibil } = useMemo(() => {
-    if (top5Matches.length === 0) return { expectedAnnualProfit: 11.5, averageCibil: 750 };
+    if (topMatches.length === 0) return { expectedAnnualProfit: 11.5, averageCibil: 750 };
 
     let weightedProfit = 0;
     let sumCibil = 0;
 
-    top5Matches.forEach((m) => {
+    topMatches.forEach((m) => {
       const share = m.allocationPercent / 100;
       weightedProfit += m.borrower.expectedAnnualProfit * share;
       sumCibil += m.borrower.cibilScore;
@@ -66,16 +79,24 @@ export function App() {
 
     return {
       expectedAnnualProfit: Number(weightedProfit.toFixed(1)),
-      averageCibil: Math.round(sumCibil / top5Matches.length),
+      averageCibil: Math.round(sumCibil / topMatches.length),
     };
-  }, [top5Matches]);
+  }, [topMatches]);
 
   // 1-Click "Fund Selected Portfolio" Action Handler
   const handleFundPortfolio = () => {
-    // Generate official receipt immediately
-    const receipt = generateOfficialReceipt(capital, currency, top5Matches);
+    const receipt = generateOfficialReceipt(
+      budgetInr,
+      currency,
+      topMatches,
+      targetTimeline,
+      isPortfolioLocked
+    );
     setActiveReceipt(receipt);
   };
+
+  const perfectMatchCount = allMatches.filter((m) => m.matchBadgeLabel).length;
+  const timelineMatchCount = allMatches.filter((m) => m.isTimelineMatch).length;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
@@ -93,13 +114,19 @@ export function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* Step 1: Matching Controls & Sliders */}
-        <section aria-label="Investment Matching Controls">
+        {/* Step 1: Accessible Budget & Timeline Controls */}
+        <section aria-label="Smart Budget, Timeline & Micro-Lending Controls">
           <MatchingControls
             language={language}
             currency={currency}
-            capital={capital}
-            setCapital={setCapital}
+            budgetInr={budgetInr}
+            setBudgetInr={setBudgetInr}
+            targetTimeline={targetTimeline}
+            setTargetTimeline={setTargetTimeline}
+            isPortfolioLocked={isPortfolioLocked}
+            setIsPortfolioLocked={setIsPortfolioLocked}
+            basketCount={basketCount}
+            setBasketCount={setBasketCount}
             riskLevel={riskLevel}
             setRiskLevel={setRiskLevel}
             expectedAnnualProfit={expectedAnnualProfit}
@@ -107,13 +134,14 @@ export function App() {
           />
         </section>
 
-        {/* Step 2: Smart Basket Split (5-Way Capital Protection) */}
-        <section aria-label="5-Way Capital Diversification Split">
+        {/* Step 2: Smart Basket Split (100% Capital Lock & Zero Idle Cash) */}
+        <section aria-label="Capital Diversification Split">
           <SmartBasketSplit
-            top5Matches={top5Matches}
+            top5Matches={topMatches}
             language={language}
             currency={currency}
-            totalCapital={capital}
+            totalBudgetInr={budgetInr}
+            isPortfolioLocked={isPortfolioLocked}
             onSelectBorrower={(b) => setSelectedBorrower(b)}
           />
         </section>
@@ -122,19 +150,45 @@ export function App() {
         <section aria-label="Verified Micro-Borrower Listings" className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-300">
             <div>
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-                {t.borrowersListTitle}
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
+                  {t.borrowersListTitle}
+                </h3>
+                {targetTimeline > 0 && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300 font-mono">
+                    Filtered by: {targetTimeline} Months
+                  </span>
+                )}
+                {budgetInr <= 2000 && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 font-mono">
+                    Micro-Ticket Mode (₹{budgetInr.toLocaleString('en-IN')})
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-600 mt-0.5">
                 {t.borrowersListSubtitle}
               </p>
             </div>
-            <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-lg border border-slate-300 shadow-sm self-start sm:self-auto font-mono">
-              6 Verified Micro-Enterprises
-            </span>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {perfectMatchCount > 0 && (
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300 font-mono flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{perfectMatchCount} Perfect 100% Matches</span>
+                </span>
+              )}
+              {targetTimeline > 0 && (
+                <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 font-mono">
+                  {timelineMatchCount} with {targetTimeline}M Tenure
+                </span>
+              )}
+              <span className="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-sm font-mono">
+                {MOCK_BORROWERS.length} Verified Micro-Enterprises
+              </span>
+            </div>
           </div>
 
-          {/* Grid of Borrower Cards */}
+          {/* Grid of Borrower Cards with "100% Match" badges and fractional progress */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {allMatches.map((match) => (
               <BorrowerCard
@@ -158,14 +212,16 @@ export function App() {
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <span>Fund 5-Way Portfolio ({formatCurrency(capital, currency)})</span>
+              <div className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                <span>Fund Micro-Portfolio ({formatCurrency(budgetInr, currency)})</span>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
                   +{expectedAnnualProfit}% Profit / Year
                 </span>
               </div>
               <p className="text-xs text-slate-600">
-                Secured via Scheduled Commercial Bank Escrow Account
+                {isPortfolioLocked
+                  ? '🔒 100% Balance Locked Across Top Matches • ₹0 Idle Cash'
+                  : 'Secured via Scheduled Commercial Bank Escrow Account'}
               </p>
             </div>
           </div>
@@ -208,7 +264,7 @@ export function App() {
         onClose={() => setIsProfitModalOpen(false)}
         language={language}
         currency={currency}
-        initialCapital={capital}
+        initialCapital={budgetInr}
         expectedAnnualProfit={expectedAnnualProfit}
       />
 
@@ -223,7 +279,8 @@ export function App() {
         onClose={() => setIsVoiceModalOpen(false)}
         language={language}
         setLanguage={setLanguage}
-        setCapital={setCapital}
+        setBudgetInr={setBudgetInr}
+        setTargetTimeline={setTargetTimeline}
         setRiskLevel={setRiskLevel}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
         onFundPortfolio={handleFundPortfolio}

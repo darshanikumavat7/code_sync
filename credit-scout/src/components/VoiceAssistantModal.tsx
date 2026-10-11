@@ -7,7 +7,7 @@ import {
   HelpCircle,
   Volume2
 } from 'lucide-react';
-import { Language } from '../types';
+import { Language, TargetTimeline } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 
 interface VoiceAssistantModalProps {
@@ -15,7 +15,8 @@ interface VoiceAssistantModalProps {
   onClose: () => void;
   language: Language;
   setLanguage: (lang: Language) => void;
-  setCapital: (cap: number) => void;
+  setBudgetInr: (cap: number) => void;
+  setTargetTimeline: (timeline: TargetTimeline) => void;
   setRiskLevel: (level: number) => void;
   onOpenProfitModal: () => void;
   onFundPortfolio: () => void;
@@ -26,7 +27,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   onClose,
   language,
   setLanguage,
-  setCapital,
+  setBudgetInr,
+  setTargetTimeline,
   setRiskLevel,
   onOpenProfitModal,
   onFundPortfolio,
@@ -87,6 +89,29 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     const text = cmd.toLowerCase().trim();
     let handled = false;
 
+    // Timeline duration commands
+    if (text.includes('1 month') || text.includes('1 माह') || text.includes('1 महिना') || text.includes('one month')) {
+      setTargetTimeline(1);
+      setActionFeedback('✓ Selected Timeline: 1 Month (Fast Turn)');
+      handled = true;
+    } else if (text.includes('3 month') || text.includes('3 माह') || text.includes('3 महिने') || text.includes('quarterly')) {
+      setTargetTimeline(3);
+      setActionFeedback('✓ Selected Timeline: 3 Months (Quarterly)');
+      handled = true;
+    } else if (text.includes('6 month') || text.includes('6 माह') || text.includes('6 महिने')) {
+      setTargetTimeline(6);
+      setActionFeedback('✓ Selected Timeline: 6 Months (Mid-Term)');
+      handled = true;
+    } else if (text.includes('12 month') || text.includes('12 माह') || text.includes('12 महिने') || text.includes('1 year') || text.includes('1 साल') || text.includes('1 वर्ष')) {
+      setTargetTimeline(12);
+      setActionFeedback('✓ Selected Timeline: 12 Months (1 Year)');
+      handled = true;
+    } else if (text.includes('24 month') || text.includes('24 माह') || text.includes('24 महिने') || text.includes('2 year') || text.includes('2 साल') || text.includes('2 वर्षे')) {
+      setTargetTimeline(24);
+      setActionFeedback('✓ Selected Timeline: 24 Months (2 Years)');
+      handled = true;
+    }
+
     // Risk / Safety commands
     if (text.includes('safe') || text.includes('सुरक्षित') || text.includes('कमी') || text.includes('low risk') || text.includes('defense')) {
       setRiskLevel(2);
@@ -102,22 +127,26 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       handled = true;
     }
 
-    // Capital commands
-    if (text.includes('10000') || text.includes('10,000') || text.includes('दस हजार') || text.includes('दहा हजार')) {
-      setCapital(10000);
-      setActionFeedback('✓ Set Investment Amount to $10,000');
+    // Micro-Budget commands (₹500, ₹1000, ₹5000, ₹25000, ₹50000)
+    if (text.includes('500') || text.includes('पांच सौ') || text.includes('पाचशे')) {
+      setBudgetInr(500);
+      setActionFeedback('✓ Set Micro-Budget to ₹500 ($6)');
       handled = true;
-    } else if (text.includes('5000') || text.includes('5,000') || text.includes('पांच हजार') || text.includes('पाच हजार')) {
-      setCapital(5000);
-      setActionFeedback('✓ Set Investment Amount to $5,000');
+    } else if (text.includes('1000') || text.includes('1,000') || text.includes('एक हजार') || text.includes('one thousand')) {
+      setBudgetInr(1000);
+      setActionFeedback('✓ Set Micro-Budget to ₹1,000 ($12)');
       handled = true;
-    } else if (text.includes('15000') || text.includes('15,000') || text.includes('पंद्रह हजार') || text.includes('पंधरा हजार')) {
-      setCapital(15000);
-      setActionFeedback('✓ Set Investment Amount to $15,000');
+    } else if (text.includes('5000') || text.includes('5,000') || text.includes('पांच हजार') || text.includes('पाच हजार') || text.includes('five thousand')) {
+      setBudgetInr(5000);
+      setActionFeedback('✓ Set Budget to ₹5,000 ($60)');
       handled = true;
     } else if (text.includes('25000') || text.includes('25,000') || text.includes('पच्चीस हजार') || text.includes('पंचवीस हजार')) {
-      setCapital(25000);
-      setActionFeedback('✓ Set Investment Amount to $25,000');
+      setBudgetInr(25000);
+      setActionFeedback('✓ Set Budget to ₹25,000 ($300)');
+      handled = true;
+    } else if (text.includes('50000') || text.includes('50,000') || text.includes('पचास हजार') || text.includes('पन्नास हजार')) {
+      setBudgetInr(50000);
+      setActionFeedback('✓ Set Budget to ₹50,000 ($600)');
       handled = true;
     }
 
@@ -238,7 +267,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               </p>
             ) : (
               <span className="text-xs text-slate-500">
-                Say something like "Safe mode" or "Invest 10000"
+                Say something like "Invest 500", "6 Months", or "Safe mode"
               </span>
             )}
 
@@ -258,40 +287,40 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={() => handleQuickCommand('Invest 500')}
+                className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold text-emerald-900 transition-colors"
+              >
+                🎙️ "Invest ₹500 (Micro)"
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickCommand('1 Month')}
+                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-300 text-xs font-bold text-blue-900 transition-colors"
+              >
+                🎙️ "1 Month (Fast)"
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickCommand('6 Months')}
+                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-300 text-xs font-bold text-blue-900 transition-colors"
+              >
+                🎙️ "6 Months"
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleQuickCommand('Safe mode')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-semibold text-slate-800 transition-colors"
               >
                 🎙️ "Safe mode"
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickCommand('High return')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
-              >
-                🎙️ "High return"
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('Invest 10000')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
-              >
-                🎙️ "Invest $10,000"
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('Compare with Bank FD')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
-              >
-                🎙️ "Compare with Bank FD"
-              </button>
-
-              <button
-                type="button"
                 onClick={() => handleQuickCommand('Fund portfolio')}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-blue-900 text-white text-xs font-bold transition-colors"
               >
                 🎙️ "Fund portfolio"
               </button>

@@ -190,7 +190,7 @@ export const BorrowerDetailsModal: React.FC<BorrowerDetailsModalProps> = ({
               <div className="space-y-1.5 text-xs text-slate-700">
                 <div className="flex justify-between py-1 border-b border-slate-200">
                   <span className="text-slate-500">Requested Loan:</span>
-                  <span className="font-bold font-mono text-slate-900">{formatCurrency(borrower.loanAmount, currency)}</span>
+                  <span className="font-bold font-mono text-slate-900">{formatCurrency(borrower.poolGoalInr, currency)}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200">
                   <span className="text-slate-500">Loan Tenure:</span>

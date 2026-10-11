@@ -1,13 +1,4 @@
-import { Borrower, BorrowerMatch, TransactionReceipt, Currency } from '../types';
-
-/**
- * Calculates simple risk-adjusted net profit percentage
- */
-export function calculateNetProfit(nominalRate: number, defaultRisk: number): number {
-  const prob = defaultRisk / 100;
-  const net = (nominalRate * (1 - prob)) - (prob * 50);
-  return Number(Math.max(0, net).toFixed(1));
-}
+import { Borrower, BorrowerMatch, TransactionReceipt, Currency, TargetTimeline } from '../types';
 
 /**
  * Rates borrower intrinsic safety grade on 1 to 10 scale
@@ -22,109 +13,289 @@ export function getBorrowerRiskRating(borrower: Borrower): number {
 }
 
 /**
- * Instant Matchmaker scoring (0 to 100%)
+ * Dynamic Utility Match Score (0 to 100%) incorporating:
+ * - Risk appetite alignment
+ * - Timeline alignment (target duration vs borrower tenure)
+ * - Micro-budget & fractional funding fit
+ */
+/**
+ * Dynamic Utility Match Score (0 to 100%) incorporating:
+ * - Repayment timeline alignment (target duration vs borrower tenure)
+ * - Micro-budget & fractional micro-funding completion power
+ * - Required loan size vs investor capital absorption
+ * - Risk appetite and CIBIL credit safety
  */
 export function calculateMatchScore(
   borrower: Borrower,
   riskLevel: number,
-  capital: number
-): number {
+  budgetInr: number,
+  targetTimeline: TargetTimeline
+): {
+  matchScore: number;
+  isTimelineMatch: boolean;
+  isBudgetMatch: boolean;
+  matchBadgeLabel?: string;
+  remainingNeededInr: number;
+  fractionalCompletionPct: number;
+  fractionalImpactText: string;
+  matchReasonText: string;
+} {
+  const remainingNeededInr = Math.max(0, borrower.poolGoalInr - borrower.fundedAmountInr);
+
+  // 1. Repayment Timeline Alignment (45% weight when timeline selected)
+  let timelineScore = 95;
+  const isTimelineMatch = targetTimeline === 0 || targetTimeline === borrower.loanTenureMonths;
+  
+  if (targetTimeline === 0) {
+    timelineScore = 92;
+  } else if (targetTimeline === borrower.loanTenureMonths) {
+    timelineScore = 100; // Exact duration match!
+  } else {
+    // Proportional penalty for timeline mismatch
+    const tenureDiff = Math.abs(targetTimeline - borrower.loanTenureMonths);
+    timelineScore = Math.max(20, 85 - tenureDiff * 10);
+  }
+
+  // 2. Budget, Required Loan Size & Fractional Micro-Funding Alignment (35% weight)
+  const isBudgetMatch = budgetInr >= borrower.microTicketMinInr;
+  const isMicroBudget = budgetInr <= 2000;
+  
+  // Fractional completion calculation: How much of the remaining pool does this budget satisfy?
+  const fractionalCompletionPct = remainingNeededInr > 0
+    ? Math.min(100, Math.round((budgetInr / remainingNeededInr) * 100))
+    : 100;
+
+  let budgetScore = 90;
+  let fractionalImpactText = '';
+
+  if (isMicroBudget) {
+    // Micro-investments (₹500 - ₹2,000): Prioritize micro-borrowers near completion
+    if (remainingNeededInr <= 3000) {
+      // High fractional completion boost: a single small investment helps complete the pool!
+      budgetScore = 96 + Math.min(4, Math.round(fractionalCompletionPct * 0.04));
+      fractionalImpactText = `Micro-Ticket Impact: Your contribution directly funds ${fractionalCompletionPct}% of the final ₹${remainingNeededInr.toLocaleString('en-IN')} needed to launch!`;
+    } else {
+      budgetScore = 91;
+      fractionalImpactText = `Micro-ticket accepted (Min ₹${borrower.microTicketMinInr}): Joins community pool to reach ₹${borrower.poolGoalInr.toLocaleString('en-IN')}`;
+    }
+  } else if (budgetInr <= 10000) {
+    // Mid-tier budget: balanced absorption
+    budgetScore = 94;
+    fractionalImpactText = `Balanced allocation: Safely distributed across verified active trade credit`;
+  } else {
+    // Large budget (₹15,000 - ₹50,000): Prioritize enterprises with larger capital pool needs
+    if (borrower.poolGoalInr >= 40000) {
+      budgetScore = 98;
+      fractionalImpactText = `High capital capacity: Large enterprise pool safely absorbs substantial micro-lending tranches`;
+    } else {
+      budgetScore = 87;
+      fractionalImpactText = `Standard capacity: Capital split ensures no concentration risk`;
+    }
+  }
+
+  // 3. Risk Appetite & CIBIL Credit Quality Alignment (20% weight)
   const bRisk = getBorrowerRiskRating(borrower);
   const riskDelta = Math.abs(riskLevel - bRisk);
-  const riskScore = Math.max(30, 100 - riskDelta * 14);
+  const riskScore = Math.max(30, 100 - riskDelta * 12);
+  const cibilContribution = Math.min(100, Math.max(40, ((borrower.cibilScore - 600) / 250) * 100));
+  const creditSafetyScore = riskScore * 0.6 + cibilContribution * 0.4;
 
-  // Capital bite-size fit (15% to 35% of total capital is ideal)
-  const bite = borrower.loanAmount / capital;
-  let capitalFit = 85;
-  if (bite >= 0.12 && bite <= 0.45) capitalFit = 98;
-  else if (bite < 0.12) capitalFit = Math.max(50, 95 - (0.12 - bite) * 200);
-  else capitalFit = Math.max(40, 95 - (bite - 0.45) * 100);
+  // Composite Match Calculation
+  let totalScore: number;
+  if (targetTimeline > 0) {
+    // Strict timeline prioritization
+    totalScore = (timelineScore * 0.45) + (budgetScore * 0.35) + (creditSafetyScore * 0.20);
+  } else {
+    // All timelines: budget fit & safety take center stage
+    totalScore = (budgetScore * 0.45) + (creditSafetyScore * 0.35) + (timelineScore * 0.20);
+  }
 
-  // Credit quality score
-  const cibilScore = ((borrower.cibilScore - 600) / 300) * 100;
+  const finalScore = Math.min(99, Math.max(42, Math.round(totalScore)));
 
-  const total = (riskScore * 0.5) + (capitalFit * 0.25) + (cibilScore * 0.25);
-  return Math.min(99, Math.max(45, Math.round(total)));
+  // 4. Prominent "100% Budget & Timeline Match" Badge & Reason Text
+  let badgeLabel: string | undefined;
+  let matchReasonText = '';
+
+  if (targetTimeline > 0) {
+    if (isTimelineMatch && finalScore >= 87) {
+      badgeLabel = '100% Budget & Timeline Match';
+      matchReasonText = `Exact ${borrower.loanTenureMonths}M Tenure • ${isMicroBudget ? 'Fractional Pool Closer' : 'Optimal Capacity Fit'}`;
+    } else if (isTimelineMatch) {
+      badgeLabel = '100% Budget & Timeline Match';
+      matchReasonText = `Timeline Aligned (${borrower.loanTenureMonths}M) • Active Micro-Pool`;
+    } else {
+      matchReasonText = `${borrower.loanTenureMonths} Months (${borrower.loanTenureMonths > targetTimeline ? 'Longer' : 'Shorter'} than target)`;
+    }
+  } else {
+    // All timelines selected: top matches scoring 92%+ get 100% Match badge
+    if (finalScore >= 91) {
+      badgeLabel = '100% Budget & Timeline Match';
+      matchReasonText = isMicroBudget
+        ? `Top Fractional Micro-Match • ${borrower.loanTenureMonths}M Tenure`
+        : `Prime Micro-Portfolio Candidate • ${borrower.loanTenureMonths}M Tenure`;
+    } else {
+      matchReasonText = `${borrower.loanTenureMonths} Months • Prime CIBIL ${borrower.cibilScore}`;
+    }
+  }
+
+  return {
+    matchScore: finalScore,
+    isTimelineMatch,
+    isBudgetMatch,
+    matchBadgeLabel: badgeLabel,
+    remainingNeededInr,
+    fractionalCompletionPct,
+    fractionalImpactText,
+    matchReasonText,
+  };
 }
 
 /**
- * Smart Basket Split: Divides investor capital across top 5 safe borrowers
+ * Smart Basket Split: Divides investor budget across top 3 to 5 matching borrowers
+ * Eliminates uninvested funds even for micro-budgets (₹500).
  */
 export function computeSmartBasket(
   borrowers: Borrower[],
   riskLevel: number,
-  capital: number
+  budgetInr: number,
+  targetTimeline: TargetTimeline,
+  isPortfolioLocked: boolean = true,
+  basketCount: number = 5
 ): BorrowerMatch[] {
-  // Score all
+  // Score all borrowers
   const scored = borrowers.map((b) => {
-    const matchScore = calculateMatchScore(b, riskLevel, capital);
+    const {
+      matchScore,
+      isTimelineMatch,
+      isBudgetMatch,
+      matchBadgeLabel,
+      remainingNeededInr,
+      fractionalCompletionPct,
+      fractionalImpactText,
+      matchReasonText,
+    } = calculateMatchScore(b, riskLevel, budgetInr, targetTimeline);
+
     return {
       borrower: b,
       matchScore,
-      allocatedAmount: 0,
+      allocatedAmountInr: 0,
       allocationPercent: 0,
       basketRoleEn: '',
       basketRoleHi: '',
       basketRoleMr: '',
+      isTimelineMatch,
+      isBudgetMatch,
+      matchBadgeLabel,
+      remainingNeededInr,
+      fractionalCompletionPct,
+      fractionalImpactText,
+      matchReasonText,
     };
   });
 
-  // Sort descending by match score
-  scored.sort((a, b) => b.matchScore - a.matchScore);
+  // DYNAMIC RE-RANKING:
+  // If a target timeline is chosen (> 0):
+  // 1. Priority #1: Exact timeline matches (loanTenureMonths === targetTimeline)
+  // 2. Priority #2: Highest matchScore (fractional fit, budget alignment, credit score)
+  // Non-timeline matches appear below.
+  // If targetTimeline === 0:
+  // Sort directly by matchScore descending.
+  scored.sort((a, b) => {
+    if (targetTimeline > 0) {
+      if (a.isTimelineMatch && !b.isTimelineMatch) return -1;
+      if (!a.isTimelineMatch && b.isTimelineMatch) return 1;
+    }
+    return b.matchScore - a.matchScore;
+  });
 
-  // Top 5 split
-  const top5 = scored.slice(0, 5);
+  // Top 3 to 5 borrowers for the capital lock basket
+  const count = Math.max(3, Math.min(basketCount, scored.length));
+  const topBasket = scored.slice(0, count);
 
-  // Allocation weights inversely proportional to default risk
-  const rawWeights = top5.map((m) => {
-    const safetyMultiplier = 1 / (m.borrower.defaultRiskScore + 1);
-    return m.matchScore * safetyMultiplier;
+  // Compute allocation percentage weights based on match score and safety
+  const rawWeights = topBasket.map((m) => {
+    const safetyMultiplier = 1 / (m.borrower.defaultRiskScore + 0.8);
+    const timelineBonus = m.isTimelineMatch ? 1.35 : 1.0;
+    const microBonus = budgetInr <= 2000 && m.remainingNeededInr <= 3000 ? 1.25 : 1.0;
+    return m.matchScore * safetyMultiplier * timelineBonus * microBonus;
   });
 
   const sumWeights = rawWeights.reduce((a, b) => a + b, 0);
-  const pcts = rawWeights.map((w) => Math.round((w / sumWeights) * 100));
+  const pcts = rawWeights.map((w) => Math.max(5, Math.round((w / sumWeights) * 100)));
 
-  // Ensure sum equals 100%
+  // Normalize percentages to sum to exactly 100%
   const totalPct = pcts.reduce((a, b) => a + b, 0);
   if (pcts.length > 0) {
     pcts[0] += (100 - totalPct);
   }
 
-  // Assign roles
+  // Calculate exact rupee amounts that sum to EXACTLY budgetInr (zero idle cash)
+  let allocatedSoFar = 0;
+  const amounts = pcts.map((pct, idx) => {
+    if (idx === pcts.length - 1) {
+      // Final item takes remainder to guarantee 100.0% capital match
+      return Math.max(0, budgetInr - allocatedSoFar);
+    }
+    const amt = Math.round((budgetInr * pct) / 100);
+    allocatedSoFar += amt;
+    return amt;
+  });
+
+  // Roles for basket diversification
   const roles = [
-    { en: 'Primary Anchor', hi: 'मुख्य सुरक्षा आधार', mr: 'मुख्य सुरक्षा आधार' },
-    { en: 'Steady Cash Flow', hi: 'स्थिर नकद प्रवाह', mr: 'स्थिर रोकड प्रवाह' },
-    { en: 'Balanced Growth', hi: 'संतुलित विकास', mr: 'संतुलित वाढ' },
-    { en: 'Yield Contributor', hi: 'लाभ प्रदाता', mr: 'नफा देणारा' },
-    { en: 'Diversification Layer', hi: 'विविधीकरण स्तर', mr: 'विविधीकरण स्तर' },
+    { en: 'Core Anchor', hi: 'मुख्य सुरक्षा आधार', mr: 'मुख्य सुरक्षा आधार' },
+    { en: 'Fractional Micro-Slice', hi: 'सूक्ष्म आंशिक स्लाइस', mr: 'सूक्ष्म आंशिक स्लाइस' },
+    { en: 'Essential Staples', hi: 'दैनिक किराना प्रवाह', mr: 'दैनंदिन किराणा प्रवाह' },
+    { en: 'Balanced Turnover', hi: 'संतुलित परतावा', mr: 'संतुलित परतावा' },
+    { en: 'Yield Booster', hi: 'नफा वाढवणारा', mr: 'नफा वाढवणारा' },
   ];
 
-  top5.forEach((item, idx) => {
+  topBasket.forEach((item, idx) => {
     item.allocationPercent = pcts[idx];
-    item.allocatedAmount = Math.round((capital * pcts[idx]) / 100);
-    item.basketRoleEn = roles[idx]?.en || 'Safe Split';
-    item.basketRoleHi = roles[idx]?.hi || 'सुरक्षित विभाजन';
-    item.basketRoleMr = roles[idx]?.mr || 'सुरक्षित विभाजन';
+    item.allocatedAmountInr = amounts[idx];
+    item.basketRoleEn = roles[idx]?.en || 'Micro-Slice';
+    item.basketRoleHi = roles[idx]?.hi || 'सूक्ष्म स्लाइस';
+    item.basketRoleMr = roles[idx]?.mr || 'सूक्ष्म स्लाइस';
   });
 
   return scored;
 }
 
 /**
- * Compares 1-Year Returns with Traditional Bank Fixed Deposit (~6.0%)
+ * Currency Formatting helper for USD and INR
  */
-export function generateComparisonStats(capital: number, expectedYieldPct: number) {
+export function formatCurrency(amountInr: number, currency: Currency): string {
+  if (currency === 'INR') {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amountInr);
+  }
+  // Convert INR to USD (approx 1 USD = 84 INR)
+  const usdAmount = Math.max(1, Math.round(amountInr / 84));
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(usdAmount);
+}
+
+/**
+ * 1-Year Returns comparison vs Bank FD (6.0%)
+ */
+export function generateComparisonStats(capitalInr: number, expectedYieldPct: number) {
   const bankFdRate = 0.06;
   const peerFundRate = expectedYieldPct / 100;
 
-  const peerFundAnnualProfit = Math.round(capital * peerFundRate);
-  const bankFdAnnualProfit = Math.round(capital * bankFdRate);
+  const peerFundAnnualProfit = Math.round(capitalInr * peerFundRate);
+  const bankFdAnnualProfit = Math.round(capitalInr * bankFdRate);
   const extraProfit = peerFundAnnualProfit - bankFdAnnualProfit;
 
   return {
-    peerFundTotal: capital + peerFundAnnualProfit,
+    peerFundTotal: capitalInr + peerFundAnnualProfit,
     peerFundProfit: peerFundAnnualProfit,
-    bankFdTotal: capital + bankFdAnnualProfit,
+    bankFdTotal: capitalInr + bankFdAnnualProfit,
     bankFdProfit: bankFdAnnualProfit,
     extraProfit,
     growthMultiplier: Number((peerFundRate / bankFdRate).toFixed(1)),
@@ -132,31 +303,14 @@ export function generateComparisonStats(capital: number, expectedYieldPct: numbe
 }
 
 /**
- * Currency Formatting helper for USD and INR
- */
-export function formatCurrency(amount: number, currency: Currency): string {
-  if (currency === 'INR') {
-    const inrVal = Math.round(amount * 84);
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(inrVal);
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-/**
- * Generates official PeerFund Transaction Receipt details
+ * Generates official PeerFund Transaction Receipt
  */
 export function generateOfficialReceipt(
-  totalCapital: number,
+  totalCapitalInr: number,
   currency: Currency,
-  top5Matches: BorrowerMatch[]
+  top5Matches: BorrowerMatch[],
+  targetTimeline: TargetTimeline = 0,
+  isPortfolioLocked: boolean = true
 ): TransactionReceipt {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -172,19 +326,22 @@ export function generateOfficialReceipt(
     referenceId: `#PF-2026-${randomRef}`,
     date: dateStr,
     time: `${timeStr} IST`,
-    totalCapital,
+    totalCapitalInr,
     currency,
     escrowStatus: 'SECURED & DEPLOYED',
     escrowPartnerBank: 'State Bank of India / ICICI P2P Escrow Trustee',
     investorAadhaarRef: 'XXXX-XXXX-9418',
+    isPortfolioLocked,
+    targetTimeline,
     borrowers: top5Matches.map((m) => ({
       borrowerId: m.borrower.id,
       borrowerName: m.borrower.name,
       businessName: m.borrower.businessName,
-      allocatedAmount: m.allocatedAmount,
+      allocatedAmountInr: m.allocatedAmountInr,
       allocationPercent: m.allocationPercent,
       cibilScore: m.borrower.cibilScore,
       expectedProfit: m.borrower.expectedAnnualProfit,
+      loanTenureMonths: m.borrower.loanTenureMonths,
       loanPurpose: m.borrower.loanPurpose,
     })),
     totalExpectedAnnualProfit: Number(weightedProfit.toFixed(1)),

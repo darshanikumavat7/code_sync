@@ -9,7 +9,9 @@ import {
   FileText, 
   Layers, 
   ArrowRight,
-  Stamp
+  Stamp,
+  Lock,
+  Calendar
 } from 'lucide-react';
 import { TransactionReceipt, Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -50,18 +52,20 @@ export const OfficialReceiptModal: React.FC<OfficialReceiptModalProps> = ({
       `Escrow Status            : ${receipt.escrowStatus}`,
       `Escrow Trustee Bank      : ${receipt.escrowPartnerBank}`,
       `Investor Reference       : ${receipt.investorAadhaarRef}`,
-      `Total Capital Funded     : ${formatCurrency(receipt.totalCapital, receipt.currency)}`,
+      `Total Capital Funded     : ${formatCurrency(receipt.totalCapitalInr, receipt.currency)}`,
+      `Portfolio Lock Balance   : ${receipt.isPortfolioLocked ? 'ACTIVE (100% Allocated, ₹0 Idle)' : 'Standard'}`,
+      `Target Timeline          : ${receipt.targetTimeline === 0 ? 'All Timelines' : `${receipt.targetTimeline} Months`}`,
       `Projected Annual Yield   : +${receipt.totalExpectedAnnualProfit}% per year`,
       `Verification Hash        : ${receipt.verificationHash}`,
       '',
       '-------------------------------------------------------------------------',
-      'ITEMIZED CAPITAL ALLOCATION BREAKDOWN (TOP 5 LOCAL MICRO-BUSINESSES):',
+      'ITEMIZED CAPITAL ALLOCATION BREAKDOWN (TOP LOCAL MICRO-BUSINESSES):',
       '-------------------------------------------------------------------------',
     ];
 
     receipt.borrowers.forEach((b, idx) => {
       lines.push(
-        `${idx + 1}. ${b.borrowerName.padEnd(16)} | ${b.businessName.padEnd(32)} | CIBIL: ${b.cibilScore} | Share: ${b.allocationPercent}% | Allocated: ${formatCurrency(b.allocatedAmount, receipt.currency)}`
+        `${idx + 1}. ${b.borrowerName.padEnd(16)} | ${b.businessName.padEnd(32)} | CIBIL: ${b.cibilScore} | Tenure: ${b.loanTenureMonths}M | Share: ${b.allocationPercent}% | Allocated: ${formatCurrency(b.allocatedAmountInr, receipt.currency)}`
       );
       lines.push(`   Purpose: ${b.loanPurpose}`);
       lines.push('');
@@ -160,9 +164,21 @@ export const OfficialReceiptModal: React.FC<OfficialReceiptModalProps> = ({
                 {t.receiptTotalLabel}
               </span>
               <span className="text-base font-black font-mono text-blue-950">
-                {formatCurrency(receipt.totalCapital, receipt.currency)}
+                {formatCurrency(receipt.totalCapitalInr, receipt.currency)}
               </span>
             </div>
+          </div>
+
+          {/* Status Banners */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-900">
+            <span className="flex items-center gap-1.5">
+              <Lock className="w-4 h-4 text-blue-800" />
+              <span>100% Portfolio Balance Deployed Across Micro-Borrowers (Zero Idle Cash)</span>
+            </span>
+            <span className="flex items-center gap-1 font-mono text-slate-700">
+              <Calendar className="w-3.5 h-3.5 text-blue-800" />
+              <span>Timeline: {receipt.targetTimeline === 0 ? 'All Durations' : `${receipt.targetTimeline} Months`}</span>
+            </span>
           </div>
 
           {/* Itemized Allocation Table */}
@@ -180,6 +196,7 @@ export const OfficialReceiptModal: React.FC<OfficialReceiptModalProps> = ({
                   <tr>
                     <th className="py-2.5 px-3">#</th>
                     <th className="py-2.5 px-3">{t.receiptTableColBorrower}</th>
+                    <th className="py-2.5 px-3">Duration</th>
                     <th className="py-2.5 px-3">{t.receiptTableColPurpose}</th>
                     <th className="py-2.5 px-3">{t.receiptTableColCibil}</th>
                     <th className="py-2.5 px-3 text-right">{t.receiptTableColShare}</th>
@@ -194,7 +211,10 @@ export const OfficialReceiptModal: React.FC<OfficialReceiptModalProps> = ({
                         <span className="font-bold block text-slate-900">{b.borrowerName}</span>
                         <span className="text-[11px] text-slate-500">{b.businessName}</span>
                       </td>
-                      <td className="py-2.5 px-3 max-w-[200px] truncate text-[11px] text-slate-600">
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-900">
+                        {b.loanTenureMonths}M
+                      </td>
+                      <td className="py-2.5 px-3 max-w-[190px] truncate text-[11px] text-slate-600">
                         {b.loanPurpose}
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
@@ -204,17 +224,17 @@ export const OfficialReceiptModal: React.FC<OfficialReceiptModalProps> = ({
                         {b.allocationPercent}%
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                        {formatCurrency(b.allocatedAmount, receipt.currency)}
+                        {formatCurrency(b.allocatedAmountInr, receipt.currency)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-slate-100 font-bold border-t border-slate-300 text-slate-900">
                   <tr>
-                    <td colSpan={4} className="py-2.5 px-3 text-right">Total Deployed Capital:</td>
+                    <td colSpan={5} className="py-2.5 px-3 text-right">Total Deployed Capital:</td>
                     <td className="py-2.5 px-3 text-right font-mono">100%</td>
                     <td className="py-2.5 px-3 text-right font-mono text-sm text-blue-950">
-                      {formatCurrency(receipt.totalCapital, receipt.currency)}
+                      {formatCurrency(receipt.totalCapitalInr, receipt.currency)}
                     </td>
                   </tr>
                 </tfoot>
@@ -229,7 +249,7 @@ export const OfficialReceiptModal: React.FC<OfficialReceiptModalProps> = ({
               <span className="text-emerald-700 font-bold">✓ Trustee Bank Authenticated</span>
             </div>
             <p>
-              Note: This is an official digital receipt generated by PeerFund under RBI NBFC-P2P Master Directions. Capital is held in a zero-interest designated escrow account until disbursal.
+              Note: This is an official digital receipt generated by PeerFund under RBI NBFC-P2P Master Directions. Capital is held in a designated escrow account until disbursal to borrowers.
             </p>
           </div>
 
