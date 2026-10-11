@@ -9,9 +9,13 @@ import {
   DollarSign, 
   Coins,
   CheckCircle,
-  FileText
+  FileText,
+  User,
+  LogOut,
+  CheckCircle2,
+  KeyRound
 } from 'lucide-react';
-import { Language, Currency, UserRole } from '../types';
+import { Language, Currency, UserRole, AuthUser } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 
 interface HeaderProps {
@@ -23,6 +27,9 @@ interface HeaderProps {
   onRoleChange: (role: UserRole) => void;
   onOpenVoiceModal: () => void;
   onOpenProfitModal: () => void;
+  currentUser: AuthUser | null;
+  onOpenAuthModal: () => void;
+  onLogout: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +41,9 @@ export const Header: React.FC<HeaderProps> = ({
   onRoleChange,
   onOpenVoiceModal,
   onOpenProfitModal,
+  currentUser,
+  onOpenAuthModal,
+  onLogout,
 }) => {
   const t = TRANSLATIONS[language];
 
@@ -209,6 +219,62 @@ export const Header: React.FC<HeaderProps> = ({
             <TrendingUp className="w-4 h-4 text-blue-700" />
             <span>{t.compareWithFdBtn}</span>
           </button>
+
+          {/* Zero-Rate-Limit Auth Controls */}
+          {currentUser ? (
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200">
+                <div className="w-6 h-6 rounded-full bg-blue-900 text-white flex items-center justify-center text-xs font-bold font-mono shrink-0">
+                  {(currentUser.fullName || currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="text-left hidden md:block">
+                  <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">
+                    {currentUser.fullName || currentUser.name || currentUser.email}
+                  </div>
+                  <div className="text-[10px] text-slate-500 capitalize">
+                    {currentUser.role === 'investor' ? 'Investor' : 'Borrower'}
+                  </div>
+                </div>
+
+                {currentUser.isEmailVerified ? (
+                  <span 
+                    className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold font-mono flex items-center gap-1 shadow-xs" 
+                    title="Zero-Rate-Limit OTP Verified Email"
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>✓ Verified Email</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onOpenAuthModal}
+                    className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 text-[10px] font-bold font-mono flex items-center gap-1"
+                    title="Click to Verify 6-digit OTP"
+                  >
+                    <span>Verify OTP</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={onLogout}
+                title="Sign Out"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-red-700 hover:bg-red-50 border border-slate-200 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold transition-all shadow-sm active:scale-95"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Sign In / Register</span>
+            </button>
+          )}
 
         </div>
 

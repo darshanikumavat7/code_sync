@@ -13,10 +13,12 @@ import {
   Sparkles
 } from 'lucide-react';
 
-import { Language, Currency, Borrower, TransactionReceipt, TargetTimeline, UserRole } from './types';
+import { Language, Currency, Borrower, TransactionReceipt, TargetTimeline, UserRole, AuthUser } from './types';
 import { MOCK_BORROWERS } from './data/mockBorrowers';
 import { computeSmartBasket, formatCurrency, generateOfficialReceipt } from './utils/calculator';
 import { TRANSLATIONS } from './data/translations';
+import { getCurrentUser, logoutUser } from './services/authService';
+import { getCustomMarketplaceBorrowers } from './services/borrowerService';
 
 import { Header } from './components/Header';
 import { MatchingControls } from './components/MatchingControls';
@@ -28,11 +30,27 @@ import { OfficialReceiptModal } from './components/OfficialReceiptModal';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
 import { BorrowerLoanApplication } from './components/BorrowerLoanApplication';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
+import { AuthModal } from './components/AuthModal';
+import { NewBorrowerModal } from './components/NewBorrowerModal';
 import { Footer } from './components/Footer';
 
 export function App() {
   // Dual-Role Switcher: 'investor' (Lender Mode) vs. 'borrower' (Borrower Mode)
   const [currentRole, setCurrentRole] = useState<UserRole>('investor');
+
+  // User Authentication State (Zero Rate Limit In-Memory & LocalStorage)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isNewBorrowerModalOpen, setIsNewBorrowerModalOpen] = useState<boolean>(false);
+
+  // Active Borrowers List (Pre-loaded Pune & PCMC + Dynamically Added Onboarding Borrowers)
+  const [borrowersList, setBorrowersList] = useState<Borrower[]>(() => {
+    const custom = getCustomMarketplaceBorrowers();
+    const customIds = new Set(custom.map((c) => c.id));
+    return [...custom, ...MOCK_BORROWERS.filter((b) => !customIds.has(b.id))];
+  });
+
+  const [notificationToast, setNotificationToast] = useState<string | null>(null);
 
   // Primary States with inclusive micro-budget defaults
   const [language, setLanguage] = useState<Language>('en');
@@ -58,14 +76,14 @@ export function App() {
   // Recalculates dynamically based on Budget, Timeline, Risk, and Basket Size
   const allMatches = useMemo(() => {
     return computeSmartBasket(
-      MOCK_BORROWERS,
+      borrowersList,
       riskLevel,
       budgetInr,
       targetTimeline,
       isPortfolioLocked,
       basketCount
     );
-  }, [riskLevel, budgetInr, targetTimeline, isPortfolioLocked, basketCount]);
+  }, [borrowersList, riskLevel, budgetInr, targetTimeline, isPortfolioLocked, basketCount]);
 
   // Top Safe Matches for Smart Basket Split (3 to 5 borrowers)
   const topMatches = useMemo(() => {
@@ -91,6 +109,18 @@ export function App() {
     };
   }, [topMatches]);
 
+  // Auth and Borrower Handlers
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+  };
+
+  const handleBorrowerCreated = (newBorrower: Borrower) => {
+    setBorrowersList((prev) => [newBorrower, ...prev.filter((b) => b.id !== newBorrower.id)]);
+    setNotificationToast(`🎉 Borrower "${newBorrower.name}" dynamically listed on live marketplace!`);
+    setTimeout(() => setNotificationToast(null), 6000);
+  };
+
   // Trigger Payment Gateway & Escrow Modal
   const handleOpenPayment = (amount: number = budgetInr, role: UserRole = currentRole) => {
     setPaymentModalAmount(amount);
@@ -108,8 +138,25 @@ export function App() {
   const timelineMatchCount = allMatches.filter((m) => m.isTimelineMatch).length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 relative">
       
+      {/* Dynamic Marketplace Listing Notification Toast */}
+      {notificationToast && (
+        <div className="fixed top-16 right-4 z-50 p-4 rounded-xl bg-slate-900 text-white shadow-2xl border border-emerald-500 animate-in slide-in-from-top duration-300 max-w-md flex items-center justify-between gap-3 font-sans">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="text-xs font-semibold">{notificationToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotificationToast(null)}
+            className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Official Government & Bank Style Header */}
       <Header
         language={language}
@@ -120,6 +167,9 @@ export function App() {
         onRoleChange={setCurrentRole}
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
+        currentUser={currentUser}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -196,8 +246,16 @@ export function App() {
                     </span>
                   )}
                   <span className="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-sm font-mono">
-                    {MOCK_BORROWERS.length} Verified Micro-Enterprises
+                    {borrowersList.length} Verified Micro-Enterprises
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsNewBorrowerModalOpen(true)}
+                    className="px-3 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+                    <span>+ Apply as Borrower</span>
+                  </button>
                 </div>
               </div>
 
@@ -222,6 +280,10 @@ export function App() {
             currency={currency}
             onSwitchToLender={() => setCurrentRole('investor')}
             onProceedToEscrow={(amount) => handleOpenPayment(amount, 'borrower')}
+            onOpenNewBorrowerModal={() => setIsNewBorrowerModalOpen(true)}
+            borrowers={borrowersList}
+            onSelectBorrower={(b) => setSelectedBorrower(b)}
+            onBorrowerCreated={handleBorrowerCreated}
           />
         )}
 
@@ -322,6 +384,25 @@ export function App() {
         setRiskLevel={setRiskLevel}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
         onFundPortfolio={() => handleOpenPayment(budgetInr, 'investor')}
+      />
+
+      {/* Zero-Rate-Limit Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        language={language}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+        }}
+      />
+
+      {/* New Borrower Application & Onboarding Modal */}
+      <NewBorrowerModal
+        isOpen={isNewBorrowerModalOpen}
+        onClose={() => setIsNewBorrowerModalOpen(false)}
+        language={language}
+        currency={currency}
+        onBorrowerCreated={handleBorrowerCreated}
       />
 
     </div>

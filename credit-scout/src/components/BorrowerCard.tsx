@@ -59,6 +59,19 @@ export const BorrowerCard: React.FC<BorrowerCardProps> = ({
       
       {/* Top Header */}
       <div>
+        {/* Just Onboarded New Borrower Badge */}
+        {borrower.isNewListing && (
+          <div className="mb-3 p-2 rounded-lg bg-purple-50 border-2 border-purple-400 text-purple-950 flex items-center justify-between gap-2 shadow-sm animate-pulse">
+            <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide">
+              <Sparkles className="w-4 h-4 text-purple-600 fill-purple-400" />
+              <span>✨ Just Onboarded • Live On Marketplace</span>
+            </span>
+            <span className="text-[10px] font-mono font-bold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full border border-purple-300">
+              New Applicant
+            </span>
+          </div>
+        )}
+
         {/* Prominent "100% Budget & Timeline Match" Badge */}
         {matchBadgeLabel && (
           <div className="mb-3.5 -mt-1 p-2.5 rounded-lg bg-emerald-50 border-2 border-emerald-500 shadow-sm flex flex-col gap-1 animate-in fade-in duration-200">

@@ -58,6 +58,7 @@ export interface Borrower {
   recommendationReasonEn: string;
   recommendationReasonHi: string;
   recommendationReasonMr: string;
+  isNewListing?: boolean;
 }
 
 export interface BorrowerMatch {
@@ -198,4 +199,42 @@ export interface BorrowerApplication {
   estimatedDailyInr: number;
   applicationRefId: string;
   submissionDate: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  fullName?: string;
+  role: UserRole;
+  isEmailVerified: boolean;
+  createdAt: string;
+}
+
+export interface StoredUserAccount {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  fullName?: string;
+  role: UserRole;
+  isEmailVerified: boolean;
+  createdAt: string;
+}
+
+export interface NewBorrowerApplicationRequest {
+  fullName: string;
+  email: string;
+  mobile?: string;
+  phone?: string;
+  cityArea: string; // e.g. Pimpri, Chinchwad, Kothrud
+  businessName: string;
+  businessCategory: string;
+  requestedAmountInr: number; // 500 to 50000
+  purpose: string;
+  tenureMonths: 1 | 3 | 6 | 12 | 24;
+  monthlyIncomeInr: number;
+  cibilSelfDeclaration: number;
+  documentMockName?: string;
+  mockDocUploaded?: string;
 }
