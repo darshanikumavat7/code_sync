@@ -8,10 +8,9 @@ export interface CibilTrendPoint {
 
 export interface RepaymentLog {
   id: string;
-  month: string;
+  date: string;
   amount: number;
-  status: 'ON_TIME' | 'EARLY' | 'LATE';
-  daysOverdue: number;
+  status: 'PAID_ON_TIME' | 'PAID_EARLY';
 }
 
 export interface Borrower {
@@ -22,59 +21,69 @@ export interface Borrower {
   businessName: string;
   businessNameHi: string;
   businessNameMr: string;
-  category: 'Retail' | 'Handloom & Textile' | 'Agri & Dairy' | 'Tech Services' | 'Logistics' | 'Artisan & Crafts' | 'Automotive' | 'Food Processing';
-  categoryHi: string;
-  categoryMr: string;
+  businessCategory: string;
+  businessCategoryHi: string;
+  businessCategoryMr: string;
   location: string;
   locationHi: string;
   locationMr: string;
-  region: 'Pune Metro' | 'PCMC Industrial' | 'Rural Outskirts';
-  cibilScore: number; // 300 - 900
-  cibilTrend: CibilTrendPoint[];
-  loanAmountUsd: number;
-  nominalInterestRate: number; // e.g. 14.5%
-  defaultProbability: number; // e.g. 0.025 (2.5%)
-  termMonths: number;
-  pastRepaymentRate: number; // e.g. 100%
-  pastRepaymentLogs: RepaymentLog[];
-  monthlyRevenueUsd: number;
-  debtToIncomeRatio: number; // e.g. 24%
-  cashFlowStability: 'Excellent' | 'Strong' | 'Moderate';
-  gstinVerified: boolean;
-  udyamVerified: boolean;
-  aadhaarKycVerified: boolean;
-  avatarUrl: string;
-  businessPhotoUrl: string;
+  cibilScore: number; // 300 to 900
+  cibilHistory: CibilTrendPoint[];
+  loanAmount: number; // in USD
+  expectedAnnualProfit: number; // Plain Net Profit (e.g., 11.8%)
+  nominalInterestRate: number; // Raw Interest (e.g., 13.5%)
+  defaultRiskScore: number; // e.g. 1.8%
+  loanTenureMonths: number;
+  cashFlowStability: 'High Stability' | 'Good Stability' | 'Moderate';
+  cashFlowStabilityHi: string;
+  cashFlowStabilityMr: string;
+  pastRepaymentRecord: string; // e.g. "100% On Time (18/18 EMIs)"
+  pastRepaymentRecordHi: string;
+  pastRepaymentRecordMr: string;
+  repaymentLogs: RepaymentLog[];
   loanPurpose: string;
   loanPurposeHi: string;
   loanPurposeMr: string;
-  aiRationaleEn: string;
-  aiRationaleHi: string;
-  aiRationaleMr: string;
+  monthlyRevenue: number;
+  aadhaarVerified: boolean;
+  panVerified: boolean;
+  gstVerified: boolean;
+  udyamVerified: boolean;
+  avatarUrl: string;
+  recommendationReasonEn: string;
+  recommendationReasonHi: string;
+  recommendationReasonMr: string;
 }
 
-export interface MatchResult {
+export interface BorrowerMatch {
   borrower: Borrower;
-  matchScore: number; // 0 to 100
-  netRoi: number; // Calculated via formula
-  nominalInterestRate: number;
-  defaultProbability: number;
-  lossPenalty: number;
-  allocatedAmountUsd: number;
+  matchScore: number; // 0 to 100%
+  allocatedAmount: number;
   allocationPercent: number;
-  basketTagEn: string;
-  basketTagHi: string;
-  basketTagMr: string;
+  basketRoleEn: string;
+  basketRoleHi: string;
+  basketRoleMr: string;
 }
 
-export interface EscrowTransaction {
-  txHash: string;
-  blockNumber: number;
-  timestamp: string;
-  totalDeployedUsd: number;
-  borrowerCount: number;
-  projectedAnnualYield: number;
-  contractAddress: string;
-  status: 'CONFIRMED';
-  investorDid: string;
+export interface TransactionReceipt {
+  referenceId: string; // e.g. #PF-2026-88941
+  date: string;
+  time: string;
+  totalCapital: number;
+  currency: Currency;
+  escrowStatus: 'SECURED & DEPLOYED' | 'CONFIRMED';
+  escrowPartnerBank: string;
+  investorAadhaarRef: string;
+  borrowers: {
+    borrowerId: string;
+    borrowerName: string;
+    businessName: string;
+    allocatedAmount: number;
+    allocationPercent: number;
+    cibilScore: number;
+    expectedProfit: number;
+    loanPurpose: string;
+  }[];
+  totalExpectedAnnualProfit: number;
+  verificationHash: string;
 }

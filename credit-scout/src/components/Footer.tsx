@@ -1,12 +1,12 @@
 import React from 'react';
 import { 
+  Building2, 
   ShieldCheck, 
-  MapPin, 
-  Cpu, 
+  Phone, 
+  Mail, 
   Lock, 
-  ExternalLink,
-  Code2,
-  Heart
+  CheckCircle2, 
+  FileText 
 } from 'lucide-react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -19,74 +19,81 @@ export const Footer: React.FC<FooterProps> = ({ language }) => {
   const t = TRANSLATIONS[language];
 
   return (
-    <footer className="mt-20 border-t border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+    <footer className="mt-16 bg-slate-100 border-t border-slate-300 text-slate-700 text-xs">
+      
+      {/* Upper Information Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           
-          {/* Col 1: Brand & Mission */}
+          {/* Col 1: About Portal */}
           <div className="md:col-span-2 space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <div className="w-8 h-8 rounded-lg bg-blue-900 text-white flex items-center justify-center font-bold text-sm">
+                PF
               </div>
-              <span className="text-lg font-bold text-white tracking-tight">
-                Credit<span className="text-emerald-400">Scout</span>
+              <span className="text-lg font-black text-slate-900 tracking-tight font-sans">
+                Peer<span className="text-blue-900">Fund</span>
               </span>
             </div>
-            <p className="text-xs text-slate-400 max-w-md leading-relaxed">
-              {t.footerComplianceNotice}
+            <p className="text-xs text-slate-600 leading-relaxed max-w-md">
+              {t.footerNbfcNotice}
             </p>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>{t.punePcmcHubs}</span>
+            <div className="text-[11px] text-slate-500 font-mono">
+              Empowering local micro-enterprises across Kothrud, Hinjawadi, Bhosari MIDC, Laxmi Road, Ravet & Talegaon.
             </div>
           </div>
 
-          {/* Col 2: Algorithmic Architecture */}
-          <div className="space-y-2 text-xs">
-            <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[11px]">
-              Matchmaker Engine
+          {/* Col 2: Regulatory Compliance */}
+          <div className="space-y-2">
+            <h5 className="font-bold text-slate-900 uppercase tracking-wider text-xs">
+              Regulatory Standards
             </h5>
-            <ul className="space-y-1.5 text-slate-400">
-              <li>• Actuarial Net ROI Discounting</li>
-              <li>• 50% Loss-Given-Default Penalty</li>
-              <li>• Dynamic Utility Curve Optimization</li>
-              <li>• TransUnion CIBIL Trend Analysis</li>
-              <li>• Smart Basket Diversification</li>
+            <ul className="space-y-1.5 text-slate-600">
+              <li>• RBI Master Directions - NBFC P2P</li>
+              <li>• Scheduled Commercial Bank Escrow</li>
+              <li>• TransUnion CIBIL Bureau Integration</li>
+              <li>• Aadhaar & PAN e-KYC Verification</li>
+              <li>• SSL 256-Bit Bank Grade Encryption</li>
             </ul>
           </div>
 
-          {/* Col 3: Smart Contract Escrow */}
-          <div className="space-y-2 text-xs">
-            <h5 className="font-bold text-slate-200 uppercase tracking-wider text-[11px]">
-              Escrow & Security
+          {/* Col 3: Grievance & Investor Support */}
+          <div className="space-y-2">
+            <h5 className="font-bold text-slate-900 uppercase tracking-wider text-xs">
+              Helpdesk & Redressal
             </h5>
-            <ul className="space-y-1.5 text-slate-400">
-              <li>• ERC-4626 Tokenized Vaults</li>
-              <li>• Multi-Sig Merchant Disbursal</li>
-              <li>• Non-Custodial Capital Pools</li>
-              <li>• Web Speech API ScoutVoice</li>
-              <li>• Zero Gas Meta-Transactions</li>
-            </ul>
+            <div className="space-y-1.5 text-slate-600">
+              <p className="flex items-center gap-1.5 font-semibold text-slate-800">
+                <Phone className="w-3.5 h-3.5 text-blue-900" />
+                <span>1800-202-7337 (Toll-Free)</span>
+              </p>
+              <p className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-blue-900" />
+                <span>grievance@peerfund.org.in</span>
+              </p>
+              <p className="text-[11px] text-slate-500 pt-1">
+                Mon - Sat: 9:30 AM to 6:00 PM IST
+              </p>
+            </div>
           </div>
 
         </div>
 
-        {/* Bottom Credits Bar */}
-        <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4">
-          <div className="flex items-center gap-1.5">
-            <span>© 2026 Credit Scout Platform. Built for Next-Gen Fintech & Micro-Lending.</span>
+        {/* Bottom Disclaimer & Copyright */}
+        <div className="mt-8 pt-6 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+          <div>
+            © 2026 PeerFund National Micro-Lending Portal. All Rights Reserved.
           </div>
-
-          <div className="flex items-center gap-4 text-slate-400 text-[11px]">
-            <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              All Systems Operational • Pune Mainnet
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1 text-emerald-800 font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Certified Secure Portal</span>
             </span>
             <span>•</span>
-            <span>Version 2.4.0-Production</span>
+            <span>Accessibility Compliant (WCAG 2.1 AA)</span>
           </div>
         </div>
+
       </div>
     </footer>
   );

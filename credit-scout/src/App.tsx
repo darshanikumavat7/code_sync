@@ -1,110 +1,86 @@
 import React, { useState, useMemo } from 'react';
 import { 
+  Building2, 
   ShieldCheck, 
   TrendingUp, 
-  Layers, 
   Lock, 
-  Mic, 
-  Sparkles, 
-  ArrowRight, 
   CheckCircle2, 
-  HelpCircle,
-  Coins,
-  MapPin,
-  Cpu
+  ArrowRight, 
+  Layers, 
+  Printer, 
+  FileCheck 
 } from 'lucide-react';
 
-import { Language, Currency, Borrower, EscrowTransaction } from './types';
+import { Language, Currency, Borrower, TransactionReceipt } from './types';
 import { MOCK_BORROWERS } from './data/mockBorrowers';
-import { computeSmartBasket, formatCurrency } from './utils/calculator';
+import { computeSmartBasket, formatCurrency, generateOfficialReceipt } from './utils/calculator';
 import { TRANSLATIONS } from './data/translations';
 
 import { Header } from './components/Header';
-import { RiskSliders } from './components/RiskSliders';
-import { DiversificationBar } from './components/DiversificationBar';
-import { BorrowerGrid } from './components/BorrowerGrid';
-import { ExplainAiModal } from './components/ExplainAiModal';
-import { ProfitGraphModal } from './components/ProfitGraphModal';
-import { EscrowModal } from './components/EscrowModal';
+import { MatchingControls } from './components/MatchingControls';
+import { SmartBasketSplit } from './components/SmartBasketSplit';
+import { BorrowerCard } from './components/BorrowerCard';
+import { BorrowerDetailsModal } from './components/BorrowerDetailsModal';
+import { ProfitComparisonModal } from './components/ProfitComparisonModal';
+import { OfficialReceiptModal } from './components/OfficialReceiptModal';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
-import { PortfolioDrawer } from './components/PortfolioDrawer';
 import { Footer } from './components/Footer';
 
 export function App() {
-  // Primary Interactive Application States
+  // Primary States
   const [language, setLanguage] = useState<Language>('en');
   const [currency, setCurrency] = useState<Currency>('USD');
   const [capital, setCapital] = useState<number>(10000);
-  const [riskAppetite, setRiskAppetite] = useState<number>(3); // Default to Safe/Balanced
+  const [riskLevel, setRiskLevel] = useState<number>(3); // Default to Safe
 
-  // Modal and Drawer States
+  // Modals
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
   const [isProfitModalOpen, setIsProfitModalOpen] = useState<boolean>(false);
-  const [isEscrowModalOpen, setIsEscrowModalOpen] = useState<boolean>(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
-  const [isPortfolioDrawerOpen, setIsPortfolioDrawerOpen] = useState<boolean>(false);
-
-  // Deployed Escrow History
-  const [transactions, setTransactions] = useState<EscrowTransaction[]>([]);
-  const [notificationToast, setNotificationToast] = useState<string | null>(null);
+  const [activeReceipt, setActiveReceipt] = useState<TransactionReceipt | null>(null);
 
   const t = TRANSLATIONS[language];
 
-  // REAL-TIME RECALCULATION & RE-RANKING VIA useMemo (Core Requirement)
+  // REAL-TIME RECALCULATION & RE-RANKING VIA useMemo
   const allMatches = useMemo(() => {
-    return computeSmartBasket(MOCK_BORROWERS, riskAppetite, capital);
-  }, [riskAppetite, capital]);
+    return computeSmartBasket(MOCK_BORROWERS, riskLevel, capital);
+  }, [riskLevel, capital]);
 
-  // Top 5 Smart Basket Matches
-  const topMatches = useMemo(() => {
+  // Top 5 Safe Matches for Smart Basket Split
+  const top5Matches = useMemo(() => {
     return allMatches.slice(0, 5);
   }, [allMatches]);
 
   // Weighted Portfolio Metrics
-  const { portfolioNetRoi, portfolioNominalRoi, averageDefaultProb } = useMemo(() => {
-    if (topMatches.length === 0) {
-      return { portfolioNetRoi: 12.5, portfolioNominalRoi: 14.5, averageDefaultProb: 0.02 };
-    }
+  const { expectedAnnualProfit, averageCibil } = useMemo(() => {
+    if (top5Matches.length === 0) return { expectedAnnualProfit: 11.5, averageCibil: 750 };
 
-    let weightedNet = 0;
-    let weightedNominal = 0;
-    let weightedDef = 0;
+    let weightedProfit = 0;
+    let sumCibil = 0;
 
-    topMatches.forEach((m) => {
-      const weight = (m.allocationPercent || 20) / 100;
-      weightedNet += m.netRoi * weight;
-      weightedNominal += m.nominalInterestRate * weight;
-      weightedDef += m.defaultProbability * weight;
+    top5Matches.forEach((m) => {
+      const share = m.allocationPercent / 100;
+      weightedProfit += m.borrower.expectedAnnualProfit * share;
+      sumCibil += m.borrower.cibilScore;
     });
 
     return {
-      portfolioNetRoi: weightedNet,
-      portfolioNominalRoi: weightedNominal,
-      averageDefaultProb: weightedDef,
+      expectedAnnualProfit: Number(weightedProfit.toFixed(1)),
+      averageCibil: Math.round(sumCibil / top5Matches.length),
     };
-  }, [topMatches]);
+  }, [top5Matches]);
 
-  // Handle solo fund action
-  const handleFundSolo = (borrower: Borrower) => {
-    setSelectedBorrower(borrower);
-  };
-
-  const handleTransactionSuccess = (tx: EscrowTransaction) => {
-    setTransactions((prev) => [tx, ...prev]);
-    showToast(`Escrow transaction ${tx.txHash.slice(0, 10)}... confirmed on Block #${tx.blockNumber}!`);
-  };
-
-  const showToast = (msg: string) => {
-    setNotificationToast(msg);
-    setTimeout(() => {
-      setNotificationToast(null);
-    }, 4500);
+  // 1-Click "Fund Selected Portfolio" Action Handler
+  const handleFundPortfolio = () => {
+    // Generate official receipt immediately
+    const receipt = generateOfficialReceipt(capital, currency, top5Matches);
+    setActiveReceipt(receipt);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
       
-      {/* Top Sticky Header */}
+      {/* Official Government & Bank Style Header */}
       <Header
         language={language}
         setLanguage={setLanguage}
@@ -112,36 +88,29 @@ export function App() {
         setCurrency={setCurrency}
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
-        onOpenEscrowModal={() => setIsEscrowModalOpen(true)}
-        onOpenPortfolioDrawer={() => setIsPortfolioDrawerOpen(true)}
-        totalCapital={capital}
-        portfolioNetRoi={portfolioNetRoi}
-        deployedTxCount={transactions.length}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* Section 1: Dynamic Utility Scoring & Risk Sliders */}
-        <section aria-label="Investment Preferences & Dynamic Scoring">
-          <RiskSliders
+        {/* Step 1: Matching Controls & Sliders */}
+        <section aria-label="Investment Matching Controls">
+          <MatchingControls
             language={language}
             currency={currency}
             capital={capital}
             setCapital={setCapital}
-            riskAppetite={riskAppetite}
-            setRiskAppetite={setRiskAppetite}
-            portfolioNetRoi={portfolioNetRoi}
-            portfolioNominalRoi={portfolioNominalRoi}
-            averageDefaultProb={averageDefaultProb}
-            matchedCount={allMatches.length}
+            riskLevel={riskLevel}
+            setRiskLevel={setRiskLevel}
+            expectedAnnualProfit={expectedAnnualProfit}
+            averageCibil={averageCibil}
           />
         </section>
 
-        {/* Section 2: Smart Basket Diversification Stacked Progress Bar */}
-        <section aria-label="Smart Basket Diversification Engine">
-          <DiversificationBar
-            topMatches={topMatches}
+        {/* Step 2: Smart Basket Split (5-Way Capital Protection) */}
+        <section aria-label="5-Way Capital Diversification Split">
+          <SmartBasketSplit
+            top5Matches={top5Matches}
             language={language}
             currency={currency}
             totalCapital={capital}
@@ -149,36 +118,55 @@ export function App() {
           />
         </section>
 
-        {/* Section 3: Re-ranked Live Borrower Listings (Pune & PCMC) */}
-        <section aria-label="Localized Micro-Borrower Listings">
-          <BorrowerGrid
-            matches={allMatches}
-            language={language}
-            currency={currency}
-            onOpenExplainModal={(b) => setSelectedBorrower(b)}
-            onFundSolo={handleFundSolo}
-          />
+        {/* Step 3: Verified Micro-Borrowers (Pune & PCMC Region) */}
+        <section aria-label="Verified Micro-Borrower Listings" className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-300">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
+                {t.borrowersListTitle}
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {t.borrowersListSubtitle}
+              </p>
+            </div>
+            <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-lg border border-slate-300 shadow-sm self-start sm:self-auto font-mono">
+              6 Verified Micro-Enterprises
+            </span>
+          </div>
+
+          {/* Grid of Borrower Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {allMatches.map((match) => (
+              <BorrowerCard
+                key={match.borrower.id}
+                match={match}
+                language={language}
+                currency={currency}
+                onOpenDetails={(b) => setSelectedBorrower(b)}
+              />
+            ))}
+          </div>
         </section>
 
       </main>
 
-      {/* Floating Escrow Call-To-Action Dock */}
-      <div className="sticky bottom-5 z-30 max-w-2xl mx-auto px-4 w-full">
-        <div className="rounded-2xl glass-panel-glow bg-slate-900/90 border border-emerald-500/40 p-3.5 shadow-2xl flex items-center justify-between gap-4">
+      {/* Floating 1-Click Fund Portfolio Bottom Dock */}
+      <div className="sticky bottom-4 z-30 max-w-3xl mx-auto px-4 w-full no-print">
+        <div className="bg-white border-2 border-blue-900 rounded-xl p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
-              <Lock className="w-5 h-5 text-emerald-400" />
+            <div className="w-11 h-11 rounded-lg bg-blue-900 text-white flex items-center justify-center shrink-0 font-bold">
+              <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <div className="text-xs font-bold text-white flex items-center gap-2">
-                <span>Smart Basket: {topMatches.length} Pune MSMEs</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">
-                  {portfolioNetRoi.toFixed(2)}% Net
+              <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span>Fund 5-Way Portfolio ({formatCurrency(capital, currency)})</span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
+                  +{expectedAnnualProfit}% Profit / Year
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400 font-mono">
-                Allocating {formatCurrency(capital, currency)}
-              </span>
+              <p className="text-xs text-slate-600">
+                Secured via Scheduled Commercial Bank Escrow Account
+              </p>
             </div>
           </div>
 
@@ -186,56 +174,48 @@ export function App() {
             <button
               type="button"
               onClick={() => setIsProfitModalOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+              className="hidden md:flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold transition-colors"
             >
-              <TrendingUp className="w-3.5 h-3.5 text-teal-400" />
-              <span>Growth Graph</span>
+              <TrendingUp className="w-4 h-4 text-blue-900" />
+              <span>Compare with FD</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setIsEscrowModalOpen(true)}
-              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-extrabold transition-all shadow-md shadow-emerald-500/30 active:scale-95 flex items-center gap-1.5"
+              onClick={handleFundPortfolio}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
             >
-              <span>{t.deployEscrowBtn.split(' ')[0]} {t.deployEscrowBtn.split(' ')[1]}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>{t.fundPortfolioBtn}</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Official Government & Bank Portal Footer */}
       <Footer language={language} />
 
-      {/* Modals & Drawers */}
-      <ExplainAiModal
+      {/* Modals */}
+      <BorrowerDetailsModal
         borrower={selectedBorrower}
         onClose={() => setSelectedBorrower(null)}
         language={language}
         currency={currency}
-        investorRisk={riskAppetite}
-        onConfirmFund={(b) => {
-          setIsEscrowModalOpen(true);
-        }}
       />
 
-      <ProfitGraphModal
+      <ProfitComparisonModal
         isOpen={isProfitModalOpen}
         onClose={() => setIsProfitModalOpen(false)}
         language={language}
         currency={currency}
         initialCapital={capital}
-        portfolioNetRoi={portfolioNetRoi}
+        expectedAnnualProfit={expectedAnnualProfit}
       />
 
-      <EscrowModal
-        isOpen={isEscrowModalOpen}
-        onClose={() => setIsEscrowModalOpen(false)}
+      <OfficialReceiptModal
+        receipt={activeReceipt}
+        onClose={() => setActiveReceipt(null)}
         language={language}
-        currency={currency}
-        totalCapital={capital}
-        topMatches={topMatches}
-        onTransactionSuccess={handleTransactionSuccess}
       />
 
       <VoiceAssistantModal
@@ -244,29 +224,10 @@ export function App() {
         language={language}
         setLanguage={setLanguage}
         setCapital={setCapital}
-        setRiskAppetite={setRiskAppetite}
+        setRiskLevel={setRiskLevel}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
-        onOpenEscrowModal={() => setIsEscrowModalOpen(true)}
+        onFundPortfolio={handleFundPortfolio}
       />
-
-      <PortfolioDrawer
-        isOpen={isPortfolioDrawerOpen}
-        onClose={() => setIsPortfolioDrawerOpen(false)}
-        language={language}
-        currency={currency}
-        transactions={transactions}
-        topMatches={topMatches}
-        totalCapital={capital}
-        portfolioNetRoi={portfolioNetRoi}
-      />
-
-      {/* Toast Notification */}
-      {notificationToast && (
-        <div className="fixed top-24 right-6 z-50 p-4 rounded-2xl bg-emerald-950/90 border border-emerald-500/50 shadow-2xl text-xs font-semibold text-emerald-200 flex items-center gap-2 animate-in slide-in-from-top-4 duration-200">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{notificationToast}</span>
-        </div>
-      )}
 
     </div>
   );

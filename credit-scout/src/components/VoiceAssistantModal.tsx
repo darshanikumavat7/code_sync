@@ -3,14 +3,11 @@ import {
   X, 
   Mic, 
   MicOff, 
-  Sparkles, 
-  Volume2, 
   CheckCircle2, 
-  AlertCircle,
   HelpCircle,
-  ArrowRight
+  Volume2
 } from 'lucide-react';
-import { Language, Currency } from '../types';
+import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 
 interface VoiceAssistantModalProps {
@@ -19,9 +16,9 @@ interface VoiceAssistantModalProps {
   language: Language;
   setLanguage: (lang: Language) => void;
   setCapital: (cap: number) => void;
-  setRiskAppetite: (risk: number) => void;
+  setRiskLevel: (level: number) => void;
   onOpenProfitModal: () => void;
-  onOpenEscrowModal: () => void;
+  onFundPortfolio: () => void;
 }
 
 export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
@@ -30,28 +27,24 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   language,
   setLanguage,
   setCapital,
-  setRiskAppetite,
+  setRiskLevel,
   onOpenProfitModal,
-  onOpenEscrowModal,
+  onFundPortfolio,
 }) => {
   if (!isOpen) return null;
 
   const t = TRANSLATIONS[language];
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [feedbackMessage, setFeedbackMessage] = useState('');
-  const [browserSupported, setBrowserSupported] = useState(true);
+  const [actionFeedback, setActionFeedback] = useState('');
   const recognitionRef = useRef<any>(null);
 
-  // Initialize Web Speech API
+  // Setup Web Speech API
   useEffect(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      setBrowserSupported(false);
-      return;
-    }
+    if (!SpeechRecognition) return;
 
     try {
       const recognition = new SpeechRecognition();
@@ -61,20 +54,16 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
       recognition.onstart = () => {
         setIsListening(true);
-        setFeedbackMessage('');
+        setActionFeedback('');
       };
 
       recognition.onresult = (event: any) => {
-        const current = event.resultIndex;
-        const text = event.results[current][0].transcript;
+        const text = event.results[event.resultIndex][0].transcript;
         setTranscript(text);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = () => {
         setIsListening(false);
-        if (event.error !== 'no-speech') {
-          setFeedbackMessage(`Voice note: ${event.error}. You can also click the quick commands below.`);
-        }
       };
 
       recognition.onend = () => {
@@ -82,9 +71,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       };
 
       recognitionRef.current = recognition;
-    } catch (e) {
-      setBrowserSupported(false);
-    }
+    } catch {}
 
     return () => {
       if (recognitionRef.current) {
@@ -95,123 +82,115 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     };
   }, [language]);
 
-  // Parse voice commands
-  const parseCommand = (input: string) => {
-    const text = input.toLowerCase().trim();
-    let actionDone = false;
+  // Command parser
+  const executeCommand = (cmd: string) => {
+    const text = cmd.toLowerCase().trim();
+    let handled = false;
 
-    // 1. Risk Strategies
-    if (text.includes('safe') || text.includes('सुरक्षित') || text.includes('कमी') || text.includes('defense') || text.includes('बचाव')) {
-      setRiskAppetite(2);
-      setFeedbackMessage('✓ Switched Risk Strategy to: Ultra Safe / Capital Defense (Level 2)');
-      actionDone = true;
-    } else if (text.includes('aggressive') || text.includes('आक्रामक') || text.includes('high yield') || text.includes('जास्त') || text.includes('alpha')) {
-      setRiskAppetite(9);
-      setFeedbackMessage('✓ Switched Risk Strategy to: Aggressive High Yield (Level 9)');
-      actionDone = true;
+    // Risk / Safety commands
+    if (text.includes('safe') || text.includes('सुरक्षित') || text.includes('कमी') || text.includes('low risk') || text.includes('defense')) {
+      setRiskLevel(2);
+      setActionFeedback('✓ Set to Maximum Safety Level (Level 2)');
+      handled = true;
+    } else if (text.includes('aggressive') || text.includes('high') || text.includes('जास्त') || text.includes('आक्रामक') || text.includes('मुनाफा')) {
+      setRiskLevel(9);
+      setActionFeedback('✓ Set to High Return Level (Level 9)');
+      handled = true;
     } else if (text.includes('balanced') || text.includes('संतुलित') || text.includes('मध्यम')) {
-      setRiskAppetite(5);
-      setFeedbackMessage('✓ Switched Risk Strategy to: Balanced Growth (Level 5)');
-      actionDone = true;
+      setRiskLevel(5);
+      setActionFeedback('✓ Set to Balanced Level (Level 5)');
+      handled = true;
     }
 
-    // 2. Capital Amounts
-    if (text.includes('10000') || text.includes('10,000') || text.includes('दहा हजार') || text.includes('दस हजार') || text.includes('ten thousand')) {
+    // Capital commands
+    if (text.includes('10000') || text.includes('10,000') || text.includes('दस हजार') || text.includes('दहा हजार')) {
       setCapital(10000);
-      setFeedbackMessage('✓ Updated Total Investment Capital to: $10,000');
-      actionDone = true;
-    } else if (text.includes('5000') || text.includes('5,000') || text.includes('पाच हजार') || text.includes('पांच हजार') || text.includes('five thousand')) {
+      setActionFeedback('✓ Set Investment Amount to $10,000');
+      handled = true;
+    } else if (text.includes('5000') || text.includes('5,000') || text.includes('पांच हजार') || text.includes('पाच हजार')) {
       setCapital(5000);
-      setFeedbackMessage('✓ Updated Total Investment Capital to: $5,000');
-      actionDone = true;
+      setActionFeedback('✓ Set Investment Amount to $5,000');
+      handled = true;
     } else if (text.includes('15000') || text.includes('15,000') || text.includes('पंद्रह हजार') || text.includes('पंधरा हजार')) {
       setCapital(15000);
-      setFeedbackMessage('✓ Updated Total Investment Capital to: $15,000');
-      actionDone = true;
+      setActionFeedback('✓ Set Investment Amount to $15,000');
+      handled = true;
     } else if (text.includes('25000') || text.includes('25,000') || text.includes('पच्चीस हजार') || text.includes('पंचवीस हजार')) {
       setCapital(25000);
-      setFeedbackMessage('✓ Updated Total Investment Capital to: $25,000');
-      actionDone = true;
+      setActionFeedback('✓ Set Investment Amount to $25,000');
+      handled = true;
     }
 
-    // 3. Modals & Actions
-    if (text.includes('graph') || text.includes('profit') || text.includes('ग्राफ') || text.includes('आलेख') || text.includes('fd') || text.includes('fixed deposit')) {
+    // Actions
+    if (text.includes('compare') || text.includes('fd') || text.includes('fixed deposit') || text.includes('तुलना') || text.includes('बँक')) {
       onClose();
       onOpenProfitModal();
       return;
-    } else if (text.includes('escrow') || text.includes('deploy') || text.includes('एस्क्रो') || text.includes('स्मार्ट')) {
+    } else if (text.includes('fund') || text.includes('रसीद') || text.includes('पावती') || text.includes('पैसा') || text.includes('invest')) {
       onClose();
-      onOpenEscrowModal();
+      onFundPortfolio();
       return;
     }
 
-    // 4. Languages
+    // Language
     if (text.includes('hindi') || text.includes('हिंदी')) {
       setLanguage('hi');
-      setFeedbackMessage('✓ भाषा बदलकर हिंदी कर दी गई है।');
-      actionDone = true;
+      setActionFeedback('✓ भाषा हिंदी सेट केली/केली गई');
+      handled = true;
     } else if (text.includes('marathi') || text.includes('मराठी')) {
       setLanguage('mr');
-      setFeedbackMessage('✓ भाषा बदलून मराठी केली आहे.');
-      actionDone = true;
-    } else if (text.includes('english') || text.includes('अंग्रेजी')) {
+      setActionFeedback('✓ भाषा मराठी सेट केली');
+      handled = true;
+    } else if (text.includes('english')) {
       setLanguage('en');
-      setFeedbackMessage('✓ Language switched to English.');
-      actionDone = true;
+      setActionFeedback('✓ Switched language to English');
+      handled = true;
     }
 
-    if (!actionDone) {
-      setFeedbackMessage(`Recognized: "${input}". Try clicking one of the suggested commands below.`);
+    if (!handled) {
+      setActionFeedback(`Heard: "${cmd}". You can also click any command button below.`);
     }
   };
 
-  // Start / stop microphone
-  const toggleListening = () => {
+  const toggleMic = () => {
     if (!recognitionRef.current) return;
-
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
     } else {
       setTranscript('');
-      setFeedbackMessage('');
+      setActionFeedback('');
       try {
         recognitionRef.current.start();
-      } catch (err) {
+      } catch {
         setIsListening(false);
       }
     }
   };
 
-  // Trigger command simulation directly
-  const handleQuickCommand = (cmdText: string) => {
-    setTranscript(cmdText);
-    parseCommand(cmdText);
+  const handleQuickCommand = (sample: string) => {
+    setTranscript(sample);
+    executeCommand(sample);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto backdrop-blur-md bg-slate-950/80 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto backdrop-blur-sm bg-slate-900/60 animate-in fade-in duration-200">
       
       {/* Modal Container */}
-      <div className="relative w-full max-w-xl rounded-3xl glass-panel-glow bg-slate-900 border border-slate-700/80 shadow-2xl overflow-hidden my-8">
+      <div className="relative w-full max-w-lg bg-white rounded-xl border border-slate-300 shadow-2xl overflow-hidden my-8">
         
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-slate-800 bg-slate-950/70">
+        <div className="bg-blue-900 text-white p-5 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center">
-              <Mic className="w-6 h-6 text-emerald-400" />
+            <div className="w-10 h-10 rounded-lg bg-blue-800 flex items-center justify-center">
+              <Mic className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xl font-bold text-white">
-                  ScoutVoice AI
-                </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  WEB SPEECH API
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {t.voicePrompt}
+              <h3 className="text-lg font-bold text-white">
+                {t.voiceModalTitle}
+              </h3>
+              <p className="text-xs text-blue-200">
+                {t.voiceModalSubtitle}
               </p>
             </div>
           </div>
@@ -219,150 +198,102 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-blue-200 hover:text-white hover:bg-blue-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 space-y-6 text-center">
+        <div className="p-6 space-y-6 text-center">
           
-          {/* Central Pulsing Microphone Trigger */}
-          <div className="py-4 flex flex-col items-center justify-center">
-            <div className="relative">
-              {isListening && (
-                <>
-                  <div className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
-                  <div className="absolute -inset-4 rounded-full bg-emerald-500/10 animate-pulse" />
-                </>
+          {/* Large Microphone Button */}
+          <div className="flex flex-col items-center justify-center py-2">
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-md ${
+                isListening
+                  ? 'bg-rose-600 text-white ring-4 ring-rose-200 scale-105'
+                  : 'bg-blue-900 hover:bg-blue-800 text-white hover:scale-105'
+              }`}
+            >
+              {isListening ? (
+                <MicOff className="w-8 h-8 animate-pulse" />
+              ) : (
+                <Mic className="w-8 h-8" />
               )}
+            </button>
 
-              <button
-                type="button"
-                onClick={toggleListening}
-                className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl ${
-                  isListening
-                    ? 'bg-gradient-to-tr from-rose-500 to-amber-500 text-white shadow-rose-500/30 ring-4 ring-rose-400/30 scale-105'
-                    : 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-slate-950 shadow-emerald-500/30 hover:scale-105'
-                }`}
-              >
-                {isListening ? (
-                  <MicOff className="w-10 h-10 animate-pulse" />
-                ) : (
-                  <Mic className="w-10 h-10" />
-                )}
-              </button>
-            </div>
-
-            <p className="text-xs font-semibold mt-4 text-slate-300">
-              {isListening ? t.voiceListening : 'Tap Microphone to Speak (English / हिंदी / मराठी)'}
-            </p>
-
-            {/* Live Audio Visualizer Wave Simulation */}
-            {isListening && (
-              <div className="flex items-center gap-1.5 mt-3 h-6">
-                {[40, 75, 55, 95, 60, 85, 45, 90, 70, 50].map((h, i) => (
-                  <span
-                    key={i}
-                    className="w-1 bg-emerald-400 rounded-full animate-bounce"
-                    style={{
-                      height: `${h}%`,
-                      animationDelay: `${i * 0.08}s`,
-                      animationDuration: '0.6s',
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Spoken Transcript Display */}
-          <div className="min-h-[60px] p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-center flex flex-col items-center justify-center">
-            {transcript ? (
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Recognized Speech</span>
-                <p className="text-sm font-medium text-white italic font-mono">
-                  "{transcript}"
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">
-                {t.voiceHint}
-              </p>
-            )}
-
-            {/* Action Feedback Result */}
-            {feedbackMessage && (
-              <div className="mt-2 text-xs font-semibold text-emerald-400 flex items-center gap-1.5 animate-in fade-in">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{feedbackMessage}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Click-to-Speak Suggestion Chips */}
-          <div className="text-left space-y-2 pt-2 border-t border-slate-800">
-            <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{t.voiceHelpTitle} (Click any chip to test instantly):</span>
+            <span className="text-xs font-bold text-slate-800 mt-3 block">
+              {isListening ? t.voiceListening : t.voiceTapToSpeak}
             </span>
+          </div>
 
+          {/* Spoken Text / Status Box */}
+          <div className="min-h-[50px] p-3.5 bg-slate-50 border border-slate-300 rounded-lg text-center flex flex-col items-center justify-center">
+            {transcript ? (
+              <p className="text-sm font-bold text-slate-900 italic font-mono">
+                "{transcript}"
+              </p>
+            ) : (
+              <span className="text-xs text-slate-500">
+                Say something like "Safe mode" or "Invest 10000"
+              </span>
+            )}
+
+            {actionFeedback && (
+              <div className="mt-2 text-xs font-bold text-emerald-800 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                <span>{actionFeedback}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Quick-Click Command Buttons */}
+          <div className="text-left space-y-2 pt-2 border-t border-slate-200">
+            <span className="text-xs font-bold text-slate-700 block">
+              Quick Voice Commands (Click to simulate speaking):
+            </span>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => handleQuickCommand('Switch to Safe Mode')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-emerald-300 border border-slate-700/60 transition-all"
+                onClick={() => handleQuickCommand('Safe mode')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
               >
-                🎙️ "Safe Mode"
+                🎙️ "Safe mode"
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickCommand('Switch to Aggressive Mode')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-amber-300 border border-slate-700/60 transition-all"
+                onClick={() => handleQuickCommand('High return')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
               >
-                🎙️ "Aggressive High Yield"
+                🎙️ "High return"
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickCommand('Set capital to 15000')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-cyan-300 border border-slate-700/60 transition-all"
+                onClick={() => handleQuickCommand('Invest 10000')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
               >
-                🎙️ "Invest $15,000"
+                🎙️ "Invest $10,000"
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickCommand('Show 12-Month Growth Graph')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-teal-300 border border-slate-700/60 transition-all"
+                onClick={() => handleQuickCommand('Compare with Bank FD')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
               >
-                🎙️ "Show Profit Graph"
+                🎙️ "Compare with Bank FD"
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickCommand('Deploy Smart Escrow Contract')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-emerald-300 border border-slate-700/60 transition-all"
+                onClick={() => handleQuickCommand('Fund portfolio')}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-xs font-semibold text-slate-800 transition-colors"
               >
-                🎙️ "Deploy Escrow"
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('मराठीत बदला')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-emerald-300 border border-slate-700/60 transition-all"
-              >
-                🎙️ "मराठीत बदला"
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickCommand('हिंदी में बदलो')}
-                className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-emerald-300 border border-slate-700/60 transition-all"
-              >
-                🎙️ "हिंदी में बदलो"
+                🎙️ "Fund portfolio"
               </button>
             </div>
           </div>
