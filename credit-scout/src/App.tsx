@@ -13,7 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 
-import { Language, Currency, Borrower, TransactionReceipt, TargetTimeline } from './types';
+import { Language, Currency, Borrower, TransactionReceipt, TargetTimeline, UserRole } from './types';
 import { MOCK_BORROWERS } from './data/mockBorrowers';
 import { computeSmartBasket, formatCurrency, generateOfficialReceipt } from './utils/calculator';
 import { TRANSLATIONS } from './data/translations';
@@ -26,9 +26,14 @@ import { BorrowerDetailsModal } from './components/BorrowerDetailsModal';
 import { ProfitComparisonModal } from './components/ProfitComparisonModal';
 import { OfficialReceiptModal } from './components/OfficialReceiptModal';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
+import { BorrowerLoanApplication } from './components/BorrowerLoanApplication';
+import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { Footer } from './components/Footer';
 
 export function App() {
+  // Dual-Role Switcher: 'investor' (Lender Mode) vs. 'borrower' (Borrower Mode)
+  const [currentRole, setCurrentRole] = useState<UserRole>('investor');
+
   // Primary States with inclusive micro-budget defaults
   const [language, setLanguage] = useState<Language>('en');
   const [currency, setCurrency] = useState<Currency>('INR');
@@ -42,6 +47,9 @@ export function App() {
   const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null);
   const [isProfitModalOpen, setIsProfitModalOpen] = useState<boolean>(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
+  const [paymentModalAmount, setPaymentModalAmount] = useState<number>(5000);
+  const [paymentModalRole, setPaymentModalRole] = useState<UserRole>('investor');
   const [activeReceipt, setActiveReceipt] = useState<TransactionReceipt | null>(null);
 
   const t = TRANSLATIONS[language];
@@ -83,15 +91,16 @@ export function App() {
     };
   }, [topMatches]);
 
-  // 1-Click "Fund Selected Portfolio" Action Handler
-  const handleFundPortfolio = () => {
-    const receipt = generateOfficialReceipt(
-      budgetInr,
-      currency,
-      topMatches,
-      targetTimeline,
-      isPortfolioLocked
-    );
+  // Trigger Payment Gateway & Escrow Modal
+  const handleOpenPayment = (amount: number = budgetInr, role: UserRole = currentRole) => {
+    setPaymentModalAmount(amount);
+    setPaymentModalRole(role);
+    setIsPaymentModalOpen(true);
+  };
+
+  // Payment Verified Success Handler: launches receipt modal
+  const handlePaymentSuccess = (receipt: TransactionReceipt) => {
+    setIsPaymentModalOpen(false);
     setActiveReceipt(receipt);
   };
 
@@ -107,6 +116,8 @@ export function App() {
         setLanguage={setLanguage}
         currency={currency}
         setCurrency={setCurrency}
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
       />
@@ -114,139 +125,153 @@ export function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {/* Step 1: Accessible Budget & Timeline Controls */}
-        <section aria-label="Smart Budget, Timeline & Micro-Lending Controls">
-          <MatchingControls
-            language={language}
-            currency={currency}
-            budgetInr={budgetInr}
-            setBudgetInr={setBudgetInr}
-            targetTimeline={targetTimeline}
-            setTargetTimeline={setTargetTimeline}
-            isPortfolioLocked={isPortfolioLocked}
-            setIsPortfolioLocked={setIsPortfolioLocked}
-            basketCount={basketCount}
-            setBasketCount={setBasketCount}
-            riskLevel={riskLevel}
-            setRiskLevel={setRiskLevel}
-            expectedAnnualProfit={expectedAnnualProfit}
-            averageCibil={averageCibil}
-          />
-        </section>
-
-        {/* Step 2: Smart Basket Split (100% Capital Lock & Zero Idle Cash) */}
-        <section aria-label="Capital Diversification Split">
-          <SmartBasketSplit
-            top5Matches={topMatches}
-            language={language}
-            currency={currency}
-            totalBudgetInr={budgetInr}
-            isPortfolioLocked={isPortfolioLocked}
-            onSelectBorrower={(b) => setSelectedBorrower(b)}
-          />
-        </section>
-
-        {/* Step 3: Verified Micro-Borrowers (Pune & PCMC Region) */}
-        <section aria-label="Verified Micro-Borrower Listings" className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-300">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-                  {t.borrowersListTitle}
-                </h3>
-                {targetTimeline > 0 && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300 font-mono">
-                    Filtered by: {targetTimeline} Months
-                  </span>
-                )}
-                {budgetInr <= 2000 && (
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 font-mono">
-                    Micro-Ticket Mode (₹{budgetInr.toLocaleString('en-IN')})
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {t.borrowersListSubtitle}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {perfectMatchCount > 0 && (
-                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300 font-mono flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{perfectMatchCount} Perfect 100% Matches</span>
-                </span>
-              )}
-              {targetTimeline > 0 && (
-                <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 font-mono">
-                  {timelineMatchCount} with {targetTimeline}M Tenure
-                </span>
-              )}
-              <span className="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-sm font-mono">
-                {MOCK_BORROWERS.length} Verified Micro-Enterprises
-              </span>
-            </div>
-          </div>
-
-          {/* Grid of Borrower Cards with "100% Match" badges and fractional progress */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {allMatches.map((match) => (
-              <BorrowerCard
-                key={match.borrower.id}
-                match={match}
+        {currentRole === 'investor' ? (
+          <>
+            {/* Step 1: Accessible Budget & Timeline Controls */}
+            <section aria-label="Smart Budget, Timeline & Micro-Lending Controls">
+              <MatchingControls
                 language={language}
                 currency={currency}
-                onOpenDetails={(b) => setSelectedBorrower(b)}
+                budgetInr={budgetInr}
+                setBudgetInr={setBudgetInr}
+                targetTimeline={targetTimeline}
+                setTargetTimeline={setTargetTimeline}
+                isPortfolioLocked={isPortfolioLocked}
+                setIsPortfolioLocked={setIsPortfolioLocked}
+                basketCount={basketCount}
+                setBasketCount={setBasketCount}
+                riskLevel={riskLevel}
+                setRiskLevel={setRiskLevel}
+                expectedAnnualProfit={expectedAnnualProfit}
+                averageCibil={averageCibil}
               />
-            ))}
-          </div>
-        </section>
+            </section>
+
+            {/* Step 2: Smart Basket Split (100% Capital Lock & Zero Idle Cash) */}
+            <section aria-label="Capital Diversification Split">
+              <SmartBasketSplit
+                top5Matches={topMatches}
+                language={language}
+                currency={currency}
+                totalBudgetInr={budgetInr}
+                isPortfolioLocked={isPortfolioLocked}
+                onSelectBorrower={(b) => setSelectedBorrower(b)}
+              />
+            </section>
+
+            {/* Step 3: Verified Micro-Borrowers (Pune & PCMC Region) */}
+            <section aria-label="Verified Micro-Borrower Listings" className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-300">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
+                      {t.borrowersListTitle}
+                    </h3>
+                    {targetTimeline > 0 && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300 font-mono">
+                        Filtered by: {targetTimeline} Months
+                      </span>
+                    )}
+                    {budgetInr <= 2000 && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 font-mono">
+                        Micro-Ticket Mode (₹{budgetInr.toLocaleString('en-IN')})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {t.borrowersListSubtitle}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {perfectMatchCount > 0 && (
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300 font-mono flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{perfectMatchCount} Perfect 100% Matches</span>
+                    </span>
+                  )}
+                  {targetTimeline > 0 && (
+                    <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 font-mono">
+                      {timelineMatchCount} with {targetTimeline}M Tenure
+                    </span>
+                  )}
+                  <span className="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-sm font-mono">
+                    {MOCK_BORROWERS.length} Verified Micro-Enterprises
+                  </span>
+                </div>
+              </div>
+
+              {/* Grid of Borrower Cards with "100% Match" badges and fractional progress */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {allMatches.map((match) => (
+                  <BorrowerCard
+                    key={match.borrower.id}
+                    match={match}
+                    language={language}
+                    currency={currency}
+                    onOpenDetails={(b) => setSelectedBorrower(b)}
+                  />
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          /* Borrower Mode: Micro-Loan Application Form & Instant Pre-Assessment */
+          <BorrowerLoanApplication
+            language={language}
+            currency={currency}
+            onSwitchToLender={() => setCurrentRole('investor')}
+            onProceedToEscrow={(amount) => handleOpenPayment(amount, 'borrower')}
+          />
+        )}
 
       </main>
 
-      {/* Floating 1-Click Fund Portfolio Bottom Dock */}
-      <div className="sticky bottom-4 z-30 max-w-3xl mx-auto px-4 w-full no-print">
-        <div className="bg-white border-2 border-blue-900 rounded-xl p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-lg bg-blue-900 text-white flex items-center justify-center shrink-0 font-bold">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
-                <span>Fund Micro-Portfolio ({formatCurrency(budgetInr, currency)})</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
-                  +{expectedAnnualProfit}% Profit / Year
-                </span>
+      {/* Floating 1-Click Fund Portfolio Bottom Dock - Only in Lender/Investor Mode */}
+      {currentRole === 'investor' && (
+        <div className="sticky bottom-4 z-30 max-w-3xl mx-auto px-4 w-full no-print">
+          <div className="bg-white border-2 border-blue-900 rounded-xl p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-lg bg-blue-900 text-white flex items-center justify-center shrink-0 font-bold">
+                <ShieldCheck className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-600">
-                {isPortfolioLocked
-                  ? '🔒 100% Balance Locked Across Top Matches • ₹0 Idle Cash'
-                  : 'Secured via Scheduled Commercial Bank Escrow Account'}
-              </p>
+              <div>
+                <div className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                  <span>Fund Micro-Portfolio ({formatCurrency(budgetInr, currency)})</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
+                    +{expectedAnnualProfit}% Profit / Year
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  {isPortfolioLocked
+                    ? '🔒 100% Balance Locked Across Top Matches • ₹0 Idle Cash'
+                    : 'Secured via Scheduled Commercial Bank Escrow Account'}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsProfitModalOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold transition-colors"
-            >
-              <TrendingUp className="w-4 h-4 text-blue-900" />
-              <span>Compare with FD</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsProfitModalOpen(true)}
+                className="hidden md:flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold transition-colors"
+              >
+                <TrendingUp className="w-4 h-4 text-blue-900" />
+                <span>Compare with FD</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleFundPortfolio}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
-            >
-              <span>{t.fundPortfolioBtn}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              <button
+                type="button"
+                onClick={() => handleOpenPayment(budgetInr, 'investor')}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+              >
+                <span>{t.proceedToPayBtn}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Official Government & Bank Portal Footer */}
       <Footer language={language} />
@@ -268,6 +293,19 @@ export function App() {
         expectedAnnualProfit={expectedAnnualProfit}
       />
 
+      <PaymentGatewayModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        language={language}
+        currency={currency}
+        amountInr={paymentModalAmount}
+        userRole={paymentModalRole}
+        topMatches={topMatches}
+        targetTimeline={targetTimeline}
+        isPortfolioLocked={isPortfolioLocked}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+
       <OfficialReceiptModal
         receipt={activeReceipt}
         onClose={() => setActiveReceipt(null)}
@@ -283,7 +321,7 @@ export function App() {
         setTargetTimeline={setTargetTimeline}
         setRiskLevel={setRiskLevel}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
-        onFundPortfolio={handleFundPortfolio}
+        onFundPortfolio={() => handleOpenPayment(budgetInr, 'investor')}
       />
 
     </div>

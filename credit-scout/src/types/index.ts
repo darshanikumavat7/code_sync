@@ -77,28 +77,125 @@ export interface BorrowerMatch {
   matchReasonText?: string;
 }
 
+export type UserRole = 'investor' | 'borrower';
+
+export interface ReceiptBorrowerDetail {
+  borrowerId: string;
+  borrowerName: string;
+  borrowerNameHi?: string;
+  borrowerNameMr?: string;
+  businessName: string;
+  businessNameHi?: string;
+  businessNameMr?: string;
+  businessCategory: string;
+  businessCategoryHi?: string;
+  businessCategoryMr?: string;
+  location: string;
+  locationHi?: string;
+  locationMr?: string;
+  allocatedAmountInr: number;
+  allocationPercent: number;
+  cibilScore: number;
+  expectedProfit: number;
+  loanTenureMonths: number;
+  loanPurpose: string;
+  loanPurposeHi?: string;
+  loanPurposeMr?: string;
+  monthlyEmiInr: number;
+}
+
+export type PaymentMethod = 'upi' | 'netbanking' | 'card';
+
+export interface CreateOrderRequest {
+  amountInr: number;
+  currency: Currency;
+  role: UserRole;
+  lenderName?: string;
+  notes?: string;
+}
+
+export interface CreateOrderResponse {
+  success: boolean;
+  orderId: string;
+  amountInr: number;
+  currency: Currency;
+  role: UserRole;
+  createdAt: string;
+  status: 'LOCKED' | 'CREATED';
+  message: string;
+}
+
+export interface VerifyPaymentRequest {
+  orderId: string;
+  paymentMethod: PaymentMethod;
+  paymentApp: string;
+  payerUpiOrAccount?: string;
+  amountInr: number;
+  currency: Currency;
+  role: UserRole;
+  simulateFailure?: boolean;
+}
+
+export interface VerifyPaymentResponse {
+  success: boolean;
+  status: 'SUCCESS' | 'FAILED';
+  orderId: string;
+  transactionId: string;
+  bankRefNumber: string;
+  paymentMethod: PaymentMethod;
+  paymentApp: string;
+  amountInr: number;
+  currency: Currency;
+  verificationHash: string;
+  smartContractHash: string;
+  timestamp: string;
+  escrowStatus: string;
+  escrowPartnerBank: string;
+  message?: string;
+}
+
 export interface TransactionReceipt {
   referenceId: string; // e.g. #PF-2026-88941
   date: string;
   time: string;
   totalCapitalInr: number;
   currency: Currency;
-  escrowStatus: 'SECURED & DEPLOYED' | 'CONFIRMED';
+  escrowStatus: 'SECURED & DEPLOYED' | 'CONFIRMED' | 'VERIFIED & ESCROWED';
   escrowPartnerBank: string;
-  investorAadhaarRef: string;
+  lenderName: string;
+  lenderAadhaarRef: string;
+  smartEscrowContractHash: string;
   isPortfolioLocked: boolean;
   targetTimeline: TargetTimeline;
-  borrowers: {
-    borrowerId: string;
-    borrowerName: string;
-    businessName: string;
-    allocatedAmountInr: number;
-    allocationPercent: number;
-    cibilScore: number;
-    expectedProfit: number;
-    loanTenureMonths: number;
-    loanPurpose: string;
-  }[];
+  borrowers: ReceiptBorrowerDetail[];
   totalExpectedAnnualProfit: number;
   verificationHash: string;
+  // Payment Gateway Enhancements
+  paymentApp: string;
+  transactionId: string;
+  bankRefNumber: string;
+  orderId: string;
+  convenienceFeeInr: number;
+  payerRole: UserRole;
+  repaymentScheduleSummary?: string;
+}
+
+export interface BorrowerApplication {
+  applicantName: string;
+  businessName: string;
+  businessCategory: string;
+  location: string;
+  monthlyRevenue: number;
+  loanAmountInr: number;
+  loanPurpose: string;
+  loanTenureMonths: 1 | 3 | 6 | 12 | 24;
+  repaymentFrequency: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  aadhaarNumber: string;
+  panNumber: string;
+  estimatedCibil: number;
+  indicativeInterestRate: number;
+  estimatedEmiInr: number;
+  estimatedDailyInr: number;
+  applicationRefId: string;
+  submissionDate: string;
 }

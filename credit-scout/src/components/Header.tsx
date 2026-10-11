@@ -11,7 +11,7 @@ import {
   CheckCircle,
   FileText
 } from 'lucide-react';
-import { Language, Currency } from '../types';
+import { Language, Currency, UserRole } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 
 interface HeaderProps {
@@ -19,6 +19,8 @@ interface HeaderProps {
   setLanguage: (lang: Language) => void;
   currency: Currency;
   setCurrency: (curr: Currency) => void;
+  currentRole: UserRole;
+  onRoleChange: (role: UserRole) => void;
   onOpenVoiceModal: () => void;
   onOpenProfitModal: () => void;
 }
@@ -28,6 +30,8 @@ export const Header: React.FC<HeaderProps> = ({
   setLanguage,
   currency,
   setCurrency,
+  currentRole,
+  onRoleChange,
   onOpenVoiceModal,
   onOpenProfitModal,
 }) => {
@@ -56,26 +60,65 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Bank / Portal Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         
         {/* Portal Logo & Title */}
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-lg bg-blue-900 border border-blue-950 flex items-center justify-center text-white shadow-md">
+          <div className="w-11 h-11 rounded-lg bg-blue-900 border border-blue-950 flex items-center justify-center text-white shadow-md shrink-0">
             <Building2 className="w-6 h-6 text-white" />
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-black tracking-tight text-slate-900 font-sans">
                 Peer<span className="text-blue-800">Fund</span>
               </h1>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300 uppercase tracking-wider">
-                Micro-Lending Portal
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider font-mono ${
+                currentRole === 'investor'
+                  ? 'bg-blue-100 text-blue-900 border-blue-300'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}>
+                {currentRole === 'investor' ? 'Lender Mode' : 'Borrower Mode'}
               </span>
             </div>
             <p className="text-xs text-slate-600 font-medium">
               {t.portalSubtitle}
             </p>
+          </div>
+        </div>
+
+        {/* Central Dual-Role Switcher (Lender vs Borrower) */}
+        <div className="flex items-center justify-center self-start sm:self-auto">
+          <div className="bg-slate-100 p-1 rounded-xl border border-slate-300 shadow-sm flex items-center gap-1" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currentRole === 'investor'}
+              onClick={() => onRoleChange('investor')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                currentRole === 'investor'
+                  ? 'bg-blue-900 text-white shadow-md ring-1 ring-blue-950'
+                  : 'text-slate-700 hover:text-blue-900 hover:bg-white'
+              }`}
+            >
+              <TrendingUp className={`w-3.5 h-3.5 ${currentRole === 'investor' ? 'text-emerald-300' : 'text-slate-500'}`} />
+              <span>{t.roleLender}</span>
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currentRole === 'borrower'}
+              onClick={() => onRoleChange('borrower')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                currentRole === 'borrower'
+                  ? 'bg-blue-900 text-white shadow-md ring-1 ring-blue-950'
+                  : 'text-slate-700 hover:text-blue-900 hover:bg-white'
+              }`}
+            >
+              <FileText className={`w-3.5 h-3.5 ${currentRole === 'borrower' ? 'text-amber-300' : 'text-slate-500'}`} />
+              <span>{t.roleBorrower}</span>
+            </button>
           </div>
         </div>
 

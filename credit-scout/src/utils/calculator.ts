@@ -1,4 +1,5 @@
 import { Borrower, BorrowerMatch, TransactionReceipt, Currency, TargetTimeline } from '../types';
+import { MOCK_BORROWERS } from '../data/mockBorrowers';
 
 /**
  * Rates borrower intrinsic safety grade on 1 to 10 scale
@@ -303,24 +304,95 @@ export function generateComparisonStats(capitalInr: number, expectedYieldPct: nu
 }
 
 /**
- * Generates official PeerFund Transaction Receipt
+ * Calculates instant credit pre-assessment for Borrower Application Mode
+ */
+export function calculateBorrowerPreAssessment(
+  loanAmountInr: number,
+  tenureMonths: number,
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY',
+  monthlyRevenue: number = 50000
+) {
+  // Safe interest range for micro-enterprises (12.0% to 15.0%)
+  const rateAnnual = 0.135; // 13.5% p.a.
+  const totalRepayable = loanAmountInr * (1 + (rateAnnual * tenureMonths) / 12);
+  const monthlyEmi = Math.max(50, Math.round(totalRepayable / tenureMonths));
+  
+  let installmentAmount = monthlyEmi;
+  if (frequency === 'DAILY') {
+    installmentAmount = Math.max(10, Math.round(monthlyEmi / 30));
+  } else if (frequency === 'WEEKLY') {
+    installmentAmount = Math.max(25, Math.round(monthlyEmi / 4));
+  }
+
+  // Pre-assessed CIBIL score based on debt-to-income
+  const monthlyBurdenRatio = monthlyEmi / Math.max(10000, monthlyRevenue);
+  let estimatedCibil = 750;
+  if (monthlyBurdenRatio < 0.15) estimatedCibil = 790;
+  else if (monthlyBurdenRatio < 0.25) estimatedCibil = 765;
+  else if (monthlyBurdenRatio < 0.35) estimatedCibil = 735;
+  else estimatedCibil = 710;
+
+  return {
+    indicativeInterestRate: 13.5,
+    estimatedCibil,
+    totalRepayable: Math.round(totalRepayable),
+    estimatedEmiInr: monthlyEmi,
+    installmentAmount,
+    frequencyLabel: frequency === 'DAILY' ? 'Daily' : frequency === 'WEEKLY' ? 'Weekly' : 'Monthly',
+    isPreApproved: monthlyBurdenRatio < 0.40,
+    disbursalSpeedHours: tenureMonths <= 3 ? 2 : 4,
+  };
+}
+
+/**
+ * Generates official PeerFund Combined Dual-Party Transaction Receipt
  */
 export function generateOfficialReceipt(
   totalCapitalInr: number,
   currency: Currency,
-  top5Matches: BorrowerMatch[],
+  topMatches: BorrowerMatch[],
   targetTimeline: TargetTimeline = 0,
-  isPortfolioLocked: boolean = true
+  isPortfolioLocked: boolean = true,
+  lenderName: string = 'Rajesh Mehta (Retail Investor • Aadhaar Verified)',
+  paymentMeta?: {
+    orderId?: string;
+    paymentApp?: string;
+    transactionId?: string;
+    bankRefNumber?: string;
+    payerRole?: 'investor' | 'borrower';
+    escrowStatus?: 'SECURED & DEPLOYED' | 'CONFIRMED' | 'VERIFIED & ESCROWED';
+  }
 ): TransactionReceipt {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const randomRef = 88000 + Math.floor(Math.random() * 9999);
+  const hexHash = '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+
+  // Fallback safeguard: Ensure topMatches is populated with valid matches
+  let safeMatches = topMatches;
+  if (!safeMatches || safeMatches.length === 0) {
+    safeMatches = computeSmartBasket(
+      MOCK_BORROWERS,
+      3,
+      totalCapitalInr || 5000,
+      targetTimeline,
+      isPortfolioLocked,
+      5
+    ).slice(0, 5);
+  }
 
   let weightedProfit = 0;
-  top5Matches.forEach((m) => {
+  safeMatches.forEach((m) => {
     weightedProfit += (m.borrower.expectedAnnualProfit * m.allocationPercent) / 100;
   });
+
+  const orderId = paymentMeta?.orderId || `ORD_${randomRef}`;
+  const transactionId = paymentMeta?.transactionId || `TXN_${Math.floor(10000000 + Math.random() * 90000000)}`;
+  const bankRefNumber = paymentMeta?.bankRefNumber || `SBI_UTR_${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+  const paymentApp = paymentMeta?.paymentApp || 'Google Pay (UPI)';
+  const payerRole = paymentMeta?.payerRole || 'investor';
+  const escrowStatus = paymentMeta?.escrowStatus || 'VERIFIED & ESCROWED';
 
   return {
     referenceId: `#PF-2026-${randomRef}`,
@@ -328,23 +400,52 @@ export function generateOfficialReceipt(
     time: `${timeStr} IST`,
     totalCapitalInr,
     currency,
-    escrowStatus: 'SECURED & DEPLOYED',
+    escrowStatus,
     escrowPartnerBank: 'State Bank of India / ICICI P2P Escrow Trustee',
-    investorAadhaarRef: 'XXXX-XXXX-9418',
+    lenderName,
+    lenderAadhaarRef: 'XXXX-XXXX-9418',
+    smartEscrowContractHash: hexHash,
     isPortfolioLocked,
     targetTimeline,
-    borrowers: top5Matches.map((m) => ({
-      borrowerId: m.borrower.id,
-      borrowerName: m.borrower.name,
-      businessName: m.borrower.businessName,
-      allocatedAmountInr: m.allocatedAmountInr,
-      allocationPercent: m.allocationPercent,
-      cibilScore: m.borrower.cibilScore,
-      expectedProfit: m.borrower.expectedAnnualProfit,
-      loanTenureMonths: m.borrower.loanTenureMonths,
-      loanPurpose: m.borrower.loanPurpose,
-    })),
+    paymentApp,
+    transactionId,
+    bankRefNumber,
+    orderId,
+    convenienceFeeInr: 0,
+    payerRole,
+    borrowers: safeMatches.map((m) => {
+      // Calculate EMI for the borrower's allocated slice
+      const tenure = m.borrower.loanTenureMonths;
+      const rate = m.borrower.nominalInterestRate / 100;
+      const totalRepay = m.allocatedAmountInr * (1 + (rate * tenure) / 12);
+      const monthlyEmi = Math.max(1, Math.round(totalRepay / tenure));
+
+      return {
+        borrowerId: m.borrower.id,
+        borrowerName: m.borrower.name,
+        borrowerNameHi: m.borrower.nameHi,
+        borrowerNameMr: m.borrower.nameMr,
+        businessName: m.borrower.businessName,
+        businessNameHi: m.borrower.businessNameHi,
+        businessNameMr: m.borrower.businessNameMr,
+        businessCategory: m.borrower.businessCategory,
+        businessCategoryHi: m.borrower.businessCategoryHi,
+        businessCategoryMr: m.borrower.businessCategoryMr,
+        location: m.borrower.location,
+        locationHi: m.borrower.locationHi,
+        locationMr: m.borrower.locationMr,
+        allocatedAmountInr: m.allocatedAmountInr,
+        allocationPercent: m.allocationPercent,
+        cibilScore: m.borrower.cibilScore,
+        expectedProfit: m.borrower.expectedAnnualProfit,
+        loanTenureMonths: m.borrower.loanTenureMonths,
+        loanPurpose: m.borrower.loanPurpose,
+        loanPurposeHi: m.borrower.loanPurposeHi,
+        loanPurposeMr: m.borrower.loanPurposeMr,
+        monthlyEmiInr: monthlyEmi,
+      };
+    }),
     totalExpectedAnnualProfit: Number(weightedProfit.toFixed(1)),
-    verificationHash: 'SHA256: 7f8a91b4c3e2...8849ef201',
+    verificationHash: `SHA256: ${hexHash.substring(0, 16)}...${hexHash.substring(32)}`,
   };
 }
