@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { MOCK_BORROWERS } from './src/data/mockBorrowers.ts';
 
 // In-memory mock databases for persistence in dev server
 const mockOrdersDb = new Map<string, any>();
@@ -211,15 +212,26 @@ function peerfundBackendPlugin(): Plugin {
             const storedOtp = mockOtpsDb.get(email) || '123456';
 
             if (otp === '123456' || otp === storedOtp) {
-              const user = mockUsersDb.get(email);
+              let user = mockUsersDb.get(email);
               if (user) {
                 user.isEmailVerified = true;
+                mockUsersDb.set(email, user);
+              } else {
+                user = {
+                  id: 'usr_' + Math.random().toString(36).substring(2, 9),
+                  email,
+                  name: email.split('@')[0],
+                  role: 'investor',
+                  isEmailVerified: true,
+                  createdAt: new Date().toISOString(),
+                };
                 mockUsersDb.set(email, user);
               }
 
               return sendJson(200, {
                 success: true,
                 isEmailVerified: true,
+                user,
                 message: 'Email successfully verified with zero rate limits!',
               });
             }
@@ -234,7 +246,21 @@ function peerfundBackendPlugin(): Plugin {
         }
 
         // ---------------------------------------------------------------------
-        // 5. BORROWER: POST /api/borrowers/apply (New Borrower Onboarding)
+        // 5a. BORROWERS: GET /api/borrowers
+        // ---------------------------------------------------------------------
+        if (url.pathname === '/api/borrowers' && req.method === 'GET') {
+          const customBorrowers = Array.from(mockBorrowersDb.values());
+          const customIds = new Set(customBorrowers.map((b) => b.id));
+          const allBorrowers = [...customBorrowers, ...MOCK_BORROWERS.filter((b: any) => !customIds.has(b.id))];
+          return sendJson(200, {
+            success: true,
+            count: allBorrowers.length,
+            borrowers: allBorrowers,
+          });
+        }
+
+        // ---------------------------------------------------------------------
+        // 5b. BORROWER: POST /api/borrowers/apply (New Borrower Onboarding)
         // ---------------------------------------------------------------------
         if (url.pathname === '/api/borrowers/apply' && req.method === 'POST') {
           try {
@@ -342,9 +368,9 @@ function peerfundBackendPlugin(): Plugin {
         }
 
         // ---------------------------------------------------------------------
-        // 6. PAYMENT: POST /api/create-order
+        // 6. ESCROW: POST /api/escrow/create-order & /api/create-order
         // ---------------------------------------------------------------------
-        if (url.pathname === '/api/create-order' && req.method === 'POST') {
+        if ((url.pathname === '/api/escrow/create-order' || url.pathname === '/api/create-order') && req.method === 'POST') {
           try {
             const data = await readBody();
             const randomNum = Math.floor(100000 + Math.random() * 900000);
@@ -382,9 +408,9 @@ function peerfundBackendPlugin(): Plugin {
         }
 
         // ---------------------------------------------------------------------
-        // 7. PAYMENT: POST /api/verify-payment
+        // 7. ESCROW: POST /api/escrow/verify & /api/verify-payment
         // ---------------------------------------------------------------------
-        if (url.pathname === '/api/verify-payment' && req.method === 'POST') {
+        if ((url.pathname === '/api/escrow/verify' || url.pathname === '/api/verify-payment') && req.method === 'POST') {
           try {
             const data = await readBody();
             const orderId = data.orderId || `ORD_${Math.floor(100000 + Math.random() * 900000)}`;
@@ -395,8 +421,8 @@ function peerfundBackendPlugin(): Plugin {
             const role = data.role || 'investor';
             const isSimulatedFailure = Boolean(data.simulateFailure);
 
-            // Simulated 2-second bank authorization delay
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Simulated 1.5-second bank authorization delay
+            await new Promise((resolve) => setTimeout(resolve, 1500));
 
             if (isSimulatedFailure) {
               return sendJson(402, {
@@ -441,6 +467,18 @@ function peerfundBackendPlugin(): Plugin {
           } catch (err) {
             return sendJson(500, { success: false, error: 'Internal payment verification error' });
           }
+        }
+
+        // ---------------------------------------------------------------------
+        // 8. ESCROW RECEIPTS: GET /api/escrow/receipts
+        // ---------------------------------------------------------------------
+        if (url.pathname === '/api/escrow/receipts' && req.method === 'GET') {
+          const receipts = Array.from(mockTransactionsDb.values());
+          return sendJson(200, {
+            success: true,
+            count: receipts.length,
+            receipts,
+          });
         }
 
         next();

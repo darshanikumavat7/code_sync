@@ -1,4 +1,4 @@
-import { Borrower } from '../types';
+import type { Borrower } from '../types/index.ts';
 
 export const MOCK_BORROWERS: Borrower[] = [
   {

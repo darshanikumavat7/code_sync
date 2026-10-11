@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   KeyRound
 } from 'lucide-react';
-import { Language, Currency, UserRole, AuthUser } from '../types';
+import { Language, Currency, UserRole, AuthUser, PortalTab } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 
 interface HeaderProps {
@@ -30,6 +30,8 @@ interface HeaderProps {
   currentUser: AuthUser | null;
   onOpenAuthModal: () => void;
   onLogout: () => void;
+  activeTab: PortalTab;
+  onTabChange: (tab: PortalTab) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenAuthModal,
   onLogout,
+  activeTab,
+  onTabChange,
 }) => {
   const t = TRANSLATIONS[language];
 
@@ -278,6 +282,85 @@ export const Header: React.FC<HeaderProps> = ({
 
         </div>
 
+      </div>
+
+      {/* Clean Tabbed Navigation Bar: Marketplace & Wizard, My Portfolio, Escrow Receipts, AI Assistant */}
+      <div className="bg-slate-50 border-t border-slate-200 px-4 sm:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto py-1.5 gap-4">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0" role="tablist">
+            
+            {/* Tab 1: Marketplace & Wizard */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'marketplace'}
+              onClick={() => onTabChange('marketplace')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                activeTab === 'marketplace'
+                  ? 'bg-blue-900 text-white shadow-sm ring-1 ring-blue-950'
+                  : 'text-slate-700 hover:text-blue-900 hover:bg-slate-200/70'
+              }`}
+            >
+              <Building2 className={`w-3.5 h-3.5 ${activeTab === 'marketplace' ? 'text-emerald-300' : 'text-slate-500'}`} />
+              <span>Marketplace & Wizard</span>
+            </button>
+
+            {/* Tab 2: My Portfolio */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'portfolio'}
+              onClick={() => onTabChange('portfolio')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                activeTab === 'portfolio'
+                  ? 'bg-blue-900 text-white shadow-sm ring-1 ring-blue-950'
+                  : 'text-slate-700 hover:text-blue-900 hover:bg-slate-200/70'
+              }`}
+            >
+              <TrendingUp className={`w-3.5 h-3.5 ${activeTab === 'portfolio' ? 'text-emerald-300' : 'text-slate-500'}`} />
+              <span>My Portfolio</span>
+            </button>
+
+            {/* Tab 3: Escrow Receipts */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'receipts'}
+              onClick={() => onTabChange('receipts')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                activeTab === 'receipts'
+                  ? 'bg-blue-900 text-white shadow-sm ring-1 ring-blue-950'
+                  : 'text-slate-700 hover:text-blue-900 hover:bg-slate-200/70'
+              }`}
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 ${activeTab === 'receipts' ? 'text-emerald-300' : 'text-slate-500'}`} />
+              <span>Escrow Receipts</span>
+            </button>
+
+            {/* Tab 4: AI Voice Assistant */}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'assistant'}
+              onClick={() => onTabChange('assistant')}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-2 ${
+                activeTab === 'assistant'
+                  ? 'bg-blue-900 text-white shadow-sm ring-1 ring-blue-950'
+                  : 'text-slate-700 hover:text-blue-900 hover:bg-slate-200/70'
+              }`}
+            >
+              <Mic className={`w-3.5 h-3.5 ${activeTab === 'assistant' ? 'text-emerald-300 animate-pulse' : 'text-emerald-700'}`} />
+              <span>AI Voice Guide</span>
+            </button>
+
+          </div>
+
+          {/* Bank Escrow Protection Status Badge */}
+          <div className="hidden lg:flex items-center gap-2 text-[11px] font-mono text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-300 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>SBI Escrow Gateway Active • 0% Platform Fee • RBI Section 45-IA</span>
+          </div>
+        </div>
       </div>
     </header>
   );

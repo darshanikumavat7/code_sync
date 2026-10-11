@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Building2, 
   ShieldCheck, 
@@ -10,31 +10,49 @@ import {
   Printer, 
   FileCheck,
   Calendar,
-  Sparkles
+  Sparkles,
+  Mic
 } from 'lucide-react';
 
-import { Language, Currency, Borrower, TransactionReceipt, TargetTimeline, UserRole, AuthUser } from './types';
+import { 
+  Language, 
+  Currency, 
+  Borrower, 
+  TransactionReceipt, 
+  TargetTimeline, 
+  UserRole, 
+  AuthUser,
+  PortalTab,
+  WizardStep
+} from './types';
 import { MOCK_BORROWERS } from './data/mockBorrowers';
 import { computeSmartBasket, formatCurrency, generateOfficialReceipt } from './utils/calculator';
 import { TRANSLATIONS } from './data/translations';
 import { getCurrentUser, logoutUser } from './services/authService';
-import { getCustomMarketplaceBorrowers } from './services/borrowerService';
+import { getCustomMarketplaceBorrowers, fetchMarketplaceBorrowers } from './services/borrowerService';
 
 import { Header } from './components/Header';
-import { MatchingControls } from './components/MatchingControls';
-import { SmartBasketSplit } from './components/SmartBasketSplit';
-import { BorrowerCard } from './components/BorrowerCard';
+import { MarketplaceWizard } from './components/MarketplaceWizard';
+import { MyPortfolioView } from './components/MyPortfolioView';
+import { EscrowReceiptsView } from './components/EscrowReceiptsView';
+import { AIProcessorDrawer } from './components/AIProcessorDrawer';
+
 import { BorrowerDetailsModal } from './components/BorrowerDetailsModal';
 import { ProfitComparisonModal } from './components/ProfitComparisonModal';
 import { OfficialReceiptModal } from './components/OfficialReceiptModal';
 import { VoiceAssistantModal } from './components/VoiceAssistantModal';
-import { BorrowerLoanApplication } from './components/BorrowerLoanApplication';
 import { PaymentGatewayModal } from './components/PaymentGatewayModal';
 import { AuthModal } from './components/AuthModal';
 import { NewBorrowerModal } from './components/NewBorrowerModal';
 import { Footer } from './components/Footer';
 
 export function App() {
+  // Navigation Tabs: 'marketplace' | 'portfolio' | 'receipts' | 'assistant'
+  const [activeTab, setActiveTab] = useState<PortalTab>('marketplace');
+
+  // Progressive Disclosure Wizard Stepper: 1 (Role) -> 2 (Budget/Timeline) -> 3 (Allocations) -> 4 (Escrow)
+  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
+
   // Dual-Role Switcher: 'investor' (Lender Mode) vs. 'borrower' (Borrower Mode)
   const [currentRole, setCurrentRole] = useState<UserRole>('investor');
 
@@ -42,6 +60,7 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCurrentUser());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isNewBorrowerModalOpen, setIsNewBorrowerModalOpen] = useState<boolean>(false);
+  const [isAIProcessorOpen, setIsAIProcessorOpen] = useState<boolean>(false);
 
   // Active Borrowers List (Pre-loaded Pune & PCMC + Dynamically Added Onboarding Borrowers)
   const [borrowersList, setBorrowersList] = useState<Borrower[]>(() => {
@@ -49,6 +68,15 @@ export function App() {
     const customIds = new Set(custom.map((c) => c.id));
     return [...custom, ...MOCK_BORROWERS.filter((b) => !customIds.has(b.id))];
   });
+
+  // Fetch updated borrowers from backend GET /api/borrowers on mount
+  useEffect(() => {
+    fetchMarketplaceBorrowers().then((borrowers) => {
+      if (borrowers && borrowers.length > 0) {
+        setBorrowersList(borrowers);
+      }
+    });
+  }, []);
 
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
 
@@ -132,17 +160,16 @@ export function App() {
   const handlePaymentSuccess = (receipt: TransactionReceipt) => {
     setIsPaymentModalOpen(false);
     setActiveReceipt(receipt);
+    setNotificationToast(`✓ Payment verified! Dual-party receipt minted: ${receipt.referenceId}`);
+    setTimeout(() => setNotificationToast(null), 7000);
   };
-
-  const perfectMatchCount = allMatches.filter((m) => m.matchBadgeLabel).length;
-  const timelineMatchCount = allMatches.filter((m) => m.isTimelineMatch).length;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900 relative">
       
       {/* Dynamic Marketplace Listing Notification Toast */}
       {notificationToast && (
-        <div className="fixed top-16 right-4 z-50 p-4 rounded-xl bg-slate-900 text-white shadow-2xl border border-emerald-500 animate-in slide-in-from-top duration-300 max-w-md flex items-center justify-between gap-3 font-sans">
+        <div className="fixed top-20 right-4 z-50 p-4 rounded-xl bg-slate-900 text-white shadow-2xl border border-emerald-500 animate-in slide-in-from-top duration-300 max-w-md flex items-center justify-between gap-3 font-sans">
           <div className="flex items-center gap-2.5">
             <Sparkles className="w-5 h-5 text-emerald-400 shrink-0" />
             <span className="text-xs font-semibold">{notificationToast}</span>
@@ -157,141 +184,131 @@ export function App() {
         </div>
       )}
 
-      {/* Official Government & Bank Style Header */}
+      {/* Official Government & Bank Style Header with Tabbed Navigation */}
       <Header
         language={language}
         setLanguage={setLanguage}
         currency={currency}
         setCurrency={setCurrency}
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
-        onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
+        onRoleChange={(role) => {
+          setCurrentRole(role);
+          if (role === 'investor') setWizardStep(1);
+          else setWizardStep(2);
+        }}
+        onOpenVoiceModal={() => setIsAIProcessorOpen(true)}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
         currentUser={currentUser}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          if (tab === 'assistant') {
+            setIsAIProcessorOpen(true);
+          } else {
+            setActiveTab(tab);
+          }
+        }}
       />
 
-      {/* Main Container */}
+      {/* Main Dynamic Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
-        {currentRole === 'investor' ? (
-          <>
-            {/* Step 1: Accessible Budget & Timeline Controls */}
-            <section aria-label="Smart Budget, Timeline & Micro-Lending Controls">
-              <MatchingControls
-                language={language}
-                currency={currency}
-                budgetInr={budgetInr}
-                setBudgetInr={setBudgetInr}
-                targetTimeline={targetTimeline}
-                setTargetTimeline={setTargetTimeline}
-                isPortfolioLocked={isPortfolioLocked}
-                setIsPortfolioLocked={setIsPortfolioLocked}
-                basketCount={basketCount}
-                setBasketCount={setBasketCount}
-                riskLevel={riskLevel}
-                setRiskLevel={setRiskLevel}
-                expectedAnnualProfit={expectedAnnualProfit}
-                averageCibil={averageCibil}
-              />
-            </section>
-
-            {/* Step 2: Smart Basket Split (100% Capital Lock & Zero Idle Cash) */}
-            <section aria-label="Capital Diversification Split">
-              <SmartBasketSplit
-                top5Matches={topMatches}
-                language={language}
-                currency={currency}
-                totalBudgetInr={budgetInr}
-                isPortfolioLocked={isPortfolioLocked}
-                onSelectBorrower={(b) => setSelectedBorrower(b)}
-              />
-            </section>
-
-            {/* Step 3: Verified Micro-Borrowers (Pune & PCMC Region) */}
-            <section aria-label="Verified Micro-Borrower Listings" className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-300">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xl font-bold text-slate-900 tracking-tight font-sans">
-                      {t.borrowersListTitle}
-                    </h3>
-                    {targetTimeline > 0 && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300 font-mono">
-                        Filtered by: {targetTimeline} Months
-                      </span>
-                    )}
-                    {budgetInr <= 2000 && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 font-mono">
-                        Micro-Ticket Mode (₹{budgetInr.toLocaleString('en-IN')})
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    {t.borrowersListSubtitle}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {perfectMatchCount > 0 && (
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-300 font-mono flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{perfectMatchCount} Perfect 100% Matches</span>
-                    </span>
-                  )}
-                  {targetTimeline > 0 && (
-                    <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 font-mono">
-                      {timelineMatchCount} with {targetTimeline}M Tenure
-                    </span>
-                  )}
-                  <span className="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-sm font-mono">
-                    {borrowersList.length} Verified Micro-Enterprises
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsNewBorrowerModalOpen(true)}
-                    className="px-3 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-1.5"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-                    <span>+ Apply as Borrower</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Grid of Borrower Cards with "100% Match" badges and fractional progress */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {allMatches.map((match) => (
-                  <BorrowerCard
-                    key={match.borrower.id}
-                    match={match}
-                    language={language}
-                    currency={currency}
-                    onOpenDetails={(b) => setSelectedBorrower(b)}
-                  />
-                ))}
-              </div>
-            </section>
-          </>
-        ) : (
-          /* Borrower Mode: Micro-Loan Application Form & Instant Pre-Assessment */
-          <BorrowerLoanApplication
+        {/* VIEW 1: Clean Step-by-Step Marketplace & Wizard */}
+        {activeTab === 'marketplace' && (
+          <MarketplaceWizard
             language={language}
             currency={currency}
-            onSwitchToLender={() => setCurrentRole('investor')}
-            onProceedToEscrow={(amount) => handleOpenPayment(amount, 'borrower')}
-            onOpenNewBorrowerModal={() => setIsNewBorrowerModalOpen(true)}
-            borrowers={borrowersList}
+            currentRole={currentRole}
+            onRoleChange={(role) => {
+              setCurrentRole(role);
+              if (role === 'investor') setWizardStep(1);
+              else setWizardStep(2);
+            }}
+            activeStep={wizardStep}
+            onStepChange={setWizardStep}
+            budgetInr={budgetInr}
+            setBudgetInr={setBudgetInr}
+            targetTimeline={targetTimeline}
+            setTargetTimeline={setTargetTimeline}
+            isPortfolioLocked={isPortfolioLocked}
+            setIsPortfolioLocked={setIsPortfolioLocked}
+            basketCount={basketCount}
+            setBasketCount={setBasketCount}
+            riskLevel={riskLevel}
+            setRiskLevel={setRiskLevel}
+            expectedAnnualProfit={expectedAnnualProfit}
+            averageCibil={averageCibil}
+            allMatches={allMatches}
+            topMatches={topMatches}
+            borrowersList={borrowersList}
             onSelectBorrower={(b) => setSelectedBorrower(b)}
+            onOpenProfitModal={() => setIsProfitModalOpen(true)}
+            onOpenNewBorrowerModal={() => setIsNewBorrowerModalOpen(true)}
+            onProceedToEscrow={(amount, role) => handleOpenPayment(amount, role)}
             onBorrowerCreated={handleBorrowerCreated}
           />
         )}
 
+        {/* VIEW 2: My Portfolio Dashboard */}
+        {activeTab === 'portfolio' && (
+          <MyPortfolioView
+            language={language}
+            currency={currency}
+            onNavigateToWizard={() => {
+              setActiveTab('marketplace');
+              setWizardStep(2);
+            }}
+            onSelectBorrower={(b) => setSelectedBorrower(b)}
+            borrowers={borrowersList}
+          />
+        )}
+
+        {/* VIEW 3: Escrow Receipts & Dual-Party Ledger */}
+        {activeTab === 'receipts' && (
+          <EscrowReceiptsView
+            language={language}
+            currency={currency}
+            onOpenReceipt={(receipt) => setActiveReceipt(receipt)}
+            onNavigateToWizard={() => {
+              setActiveTab('marketplace');
+              setWizardStep(2);
+            }}
+          />
+        )}
+
+        {/* VIEW 4: Dedicated AI Voice Guide Portal */}
+        {activeTab === 'assistant' && (
+          <div className="bg-white rounded-2xl border border-slate-300 p-8 sm:p-12 shadow-md text-center max-w-2xl mx-auto space-y-5 animate-in fade-in duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-blue-900 text-white flex items-center justify-center mx-auto shadow-lg">
+              <Mic className="w-8 h-8 text-emerald-400 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                AI Voice Guide & Intent Processor
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
+                Speak commands in English, Hindi, or Marathi to automate micro-budgeting, filter by Prime CIBIL scores, and configure escrow allocations with a visual step-by-step progress drawer.
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAIProcessorOpen(true)}
+                className="px-6 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>Launch Interactive Speech Drawer</span>
+              </button>
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {/* Floating 1-Click Fund Portfolio Bottom Dock - Only in Lender/Investor Mode */}
-      {currentRole === 'investor' && (
-        <div className="sticky bottom-4 z-30 max-w-3xl mx-auto px-4 w-full no-print">
+      {/* Floating 1-Click Fund Portfolio Bottom Dock - Only in Wizard Step 3 */}
+      {activeTab === 'marketplace' && currentRole === 'investor' && wizardStep === 3 && (
+        <div className="sticky bottom-4 z-30 max-w-3xl mx-auto px-4 w-full no-print animate-in slide-in-from-bottom duration-200">
           <div className="bg-white border-2 border-blue-900 rounded-xl p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-lg bg-blue-900 text-white flex items-center justify-center shrink-0 font-bold">
@@ -315,19 +332,10 @@ export function App() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setIsProfitModalOpen(true)}
-                className="hidden md:flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold transition-colors"
+                onClick={() => setWizardStep(4)}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
               >
-                <TrendingUp className="w-4 h-4 text-blue-900" />
-                <span>Compare with FD</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleOpenPayment(budgetInr, 'investor')}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white font-black text-xs transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
-              >
-                <span>{t.proceedToPayBtn}</span>
+                <span>Proceed to Escrow (Step 4)</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -338,7 +346,7 @@ export function App() {
       {/* Official Government & Bank Portal Footer */}
       <Footer language={language} />
 
-      {/* Modals */}
+      {/* Modals & Drawers */}
       <BorrowerDetailsModal
         borrower={selectedBorrower}
         onClose={() => setSelectedBorrower(null)}
@@ -384,6 +392,25 @@ export function App() {
         setRiskLevel={setRiskLevel}
         onOpenProfitModal={() => setIsProfitModalOpen(true)}
         onFundPortfolio={() => handleOpenPayment(budgetInr, 'investor')}
+      />
+
+      {/* AI Voice Guide & Intent Processor Drawer */}
+      <AIProcessorDrawer
+        isOpen={isAIProcessorOpen}
+        onClose={() => setIsAIProcessorOpen(false)}
+        language={language}
+        setLanguage={setLanguage}
+        currency={currency}
+        setBudgetInr={setBudgetInr}
+        setTargetTimeline={setTargetTimeline}
+        setRiskLevel={setRiskLevel}
+        onProceedToStep={(step) => {
+          setActiveTab('marketplace');
+          setWizardStep(step as WizardStep);
+        }}
+        onProceedToEscrow={(amount) => {
+          handleOpenPayment(amount, 'investor');
+        }}
       />
 
       {/* Zero-Rate-Limit Auth Modal */}

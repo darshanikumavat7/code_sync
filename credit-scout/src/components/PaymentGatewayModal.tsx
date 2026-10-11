@@ -20,7 +20,7 @@ import confetti from 'canvas-confetti';
 import { Language, Currency, UserRole, PaymentMethod, TransactionReceipt, BorrowerMatch, TargetTimeline } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { formatCurrency, generateOfficialReceipt } from '../utils/calculator';
-import { createPaymentOrder, verifyPaymentTransaction } from '../services/paymentService';
+import { createPaymentOrder, verifyPaymentTransaction, saveTransactionReceipt } from '../services/paymentService';
 
 interface PaymentGatewayModalProps {
   isOpen: boolean;
@@ -201,6 +201,7 @@ export const PaymentGatewayModal: React.FC<PaymentGatewayModalProps> = ({
 
         setTimeout(() => {
           setIsAuthorizing(false);
+          saveTransactionReceipt(receipt);
           onPaymentSuccess(receipt);
         }, 600);
       } else {

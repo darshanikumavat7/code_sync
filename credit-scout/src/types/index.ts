@@ -79,6 +79,8 @@ export interface BorrowerMatch {
 }
 
 export type UserRole = 'investor' | 'borrower';
+export type PortalTab = 'marketplace' | 'portfolio' | 'receipts' | 'assistant';
+export type WizardStep = 1 | 2 | 3 | 4;
 
 export interface ReceiptBorrowerDetail {
   borrowerId: string;
@@ -162,6 +164,7 @@ export interface TransactionReceipt {
   totalCapitalInr: number;
   currency: Currency;
   escrowStatus: 'SECURED & DEPLOYED' | 'CONFIRMED' | 'VERIFIED & ESCROWED';
+  status?: string;
   escrowPartnerBank: string;
   lenderName: string;
   lenderAadhaarRef: string;

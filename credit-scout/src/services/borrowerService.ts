@@ -1,4 +1,5 @@
 import { Borrower, NewBorrowerApplicationRequest } from '../types';
+import { MOCK_BORROWERS } from '../data/mockBorrowers';
 
 const STORAGE_CUSTOM_BORROWERS_KEY = 'peerfund_custom_marketplace_borrowers';
 
@@ -12,6 +13,28 @@ export function getCustomMarketplaceBorrowers(): Borrower[] {
   } catch (e) {
     return [];
   }
+}
+
+/**
+ * Fetches all marketplace borrowers from GET /api/borrowers
+ * with resilient local storage and MOCK_BORROWERS fallback
+ */
+export async function fetchMarketplaceBorrowers(): Promise<Borrower[]> {
+  try {
+    const res = await fetch('/api/borrowers');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.borrowers)) {
+        return data.borrowers;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend GET /api/borrowers unreachable, falling back to local dataset:', err);
+  }
+
+  const custom = getCustomMarketplaceBorrowers();
+  const customIds = new Set(custom.map((c) => c.id));
+  return [...custom, ...MOCK_BORROWERS.filter((b) => !customIds.has(b.id))];
 }
 
 /**

@@ -2,25 +2,36 @@ import {
   CreateOrderRequest, 
   CreateOrderResponse, 
   VerifyPaymentRequest, 
-  VerifyPaymentResponse 
+  VerifyPaymentResponse,
+  TransactionReceipt
 } from '../types';
 
 const STORAGE_ORDERS_KEY = 'peerfund_escrow_orders';
 const STORAGE_TXNS_KEY = 'peerfund_escrow_transactions';
+const STORAGE_RECEIPTS_KEY = 'peerfund_saved_receipts';
 
 /**
- * Creates an escrow payment order via backend API (/api/create-order)
+ * Creates an escrow payment order via backend API (/api/escrow/create-order or /api/create-order)
  * with robust local fallback and storage persistence.
  */
 export async function createPaymentOrder(
   request: CreateOrderRequest
 ): Promise<CreateOrderResponse> {
   try {
-    const res = await fetch('/api/create-order', {
+    // Try primary escrow endpoint
+    let res = await fetch('/api/escrow/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
     });
+
+    if (!res.ok) {
+      res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+    }
 
     if (res.ok) {
       const data: CreateOrderResponse = await res.json();
@@ -28,7 +39,7 @@ export async function createPaymentOrder(
       return data;
     }
   } catch (error) {
-    console.warn('Backend /api/create-order unreachable, using local fallback handler:', error);
+    console.warn('Backend escrow create-order unreachable, using local fallback handler:', error);
   }
 
   // Resilient fallback order generation
@@ -49,18 +60,26 @@ export async function createPaymentOrder(
 }
 
 /**
- * Verifies payment transaction via backend API (/api/verify-payment)
- * includes 2-second bank authorization delay and local storage persistence.
+ * Verifies payment transaction via backend API (/api/escrow/verify or /api/verify-payment)
+ * includes 1.5-second bank authorization delay and local storage persistence.
  */
 export async function verifyPaymentTransaction(
   request: VerifyPaymentRequest
 ): Promise<VerifyPaymentResponse> {
   try {
-    const res = await fetch('/api/verify-payment', {
+    let res = await fetch('/api/escrow/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
     });
+
+    if (!res.ok) {
+      res = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+    }
 
     const data: VerifyPaymentResponse = await res.json();
 
@@ -73,7 +92,7 @@ export async function verifyPaymentTransaction(
       return data;
     }
   } catch (error) {
-    console.warn('Backend /api/verify-payment unreachable, using local bank simulator:', error);
+    console.warn('Backend escrow verify unreachable, using local bank simulator:', error);
   }
 
   // Simulated 2-second bank delay if backend is unreachable
@@ -150,6 +169,33 @@ function persistTransaction(txn: VerifyPaymentResponse) {
 export function getStoredTransactions(): VerifyPaymentResponse[] {
   try {
     const raw = localStorage.getItem(STORAGE_TXNS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Persists an official dual-party receipt to localStorage
+ */
+export function saveTransactionReceipt(receipt: TransactionReceipt) {
+  try {
+    const raw = localStorage.getItem(STORAGE_RECEIPTS_KEY);
+    const list: TransactionReceipt[] = raw ? JSON.parse(raw) : [];
+    const filtered = list.filter((r) => r.referenceId !== receipt.referenceId);
+    filtered.unshift(receipt);
+    localStorage.setItem(STORAGE_RECEIPTS_KEY, JSON.stringify(filtered.slice(0, 50)));
+  } catch (err) {
+    console.error('Failed to save receipt to localStorage:', err);
+  }
+}
+
+/**
+ * Retrieves all saved official dual-party receipts from localStorage
+ */
+export function getSavedReceipts(): TransactionReceipt[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_RECEIPTS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (err) {
     return [];
